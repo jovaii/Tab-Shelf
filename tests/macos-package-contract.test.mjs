@@ -27,7 +27,7 @@ test("official package flow requires full Xcode and Apple's Safari packager", ()
   assert.doesNotMatch(script, /rm\s+-[a-z]*r|git\s+clean/iu);
 });
 
-test("package validates one project, one app, exact identifiers, signing, and legal files", () => {
+test("package validates one project, one app, final identifiers, signing, and legal files", () => {
   const script = source("scripts/package-macos.sh");
 
   assert.match(script, /xcodebuild/u);
@@ -38,10 +38,6 @@ test("package validates one project, one app, exact identifiers, signing, and le
   assert.match(script, /dist\/Tab-Shelf-1\.0\.0\.zip/u);
   assert.match(script, /CFBundleIdentifier/u);
   assert.match(script, /com\.jovaii\.tabshelf\.extension/u);
-  assert.match(script, /project\.pbxproj/u);
-  assert.match(script, /com\.jovaii\.Tab-Shelf/u);
-  assert.match(script, /com\.jovaii\.tabshelf\.Extension/u);
-  assert.match(script, /sed -i ''/u);
   assert.match(script, /codesign --force --sign -/u);
   assert.match(script, /codesign --verify --strict/u);
   assert.match(script, /ditto -c -k --sequesterRsrc --keepParent/u);
@@ -70,13 +66,15 @@ test("package does not register the build-directory app with Launch Services", (
   assert.ok(script.indexOf('lsregister" -u "$BUILT_APP"') < script.indexOf('ditto "$BUILT_APP"'));
 });
 
-test("package synchronizes the containing app with the final extension identifier", () => {
+test("package prepares the generated project before building without inline mutations", () => {
   const script = source("scripts/package-macos.sh");
+  const preparation = 'node scripts/prepare-macos-project.mjs "$GENERATED_PROJECT"';
 
-  assert.match(script, /ViewController\.swift/u);
-  assert.match(script, /extensionBundleIdentifier/u);
-  assert.match(script, /com\.jovaii\.tabshelf\.Extension/u);
-  assert.match(script, /com\.jovaii\.tabshelf\.extension/u);
+  assert.match(script, /node scripts\/prepare-macos-project\.mjs "\$GENERATED_PROJECT"/u);
+  assert.ok(script.indexOf(preparation) > script.indexOf('mv "$PACKAGER_ROOT" "$GENERATED_PROJECT"'));
+  assert.ok(script.indexOf(preparation) < script.indexOf("xcrun xcodebuild"));
+  assert.doesNotMatch(script, /sed -i|GENERATED_(?:OUTER|EXTENSION)_SETTING/iu);
+  assert.doesNotMatch(script, /com\.jovaii\.Tab-Shelf|com\.jovaii\.tabshelf\.Extension/u);
 });
 
 test("installer uses one exact target and a recoverable sibling backup", () => {

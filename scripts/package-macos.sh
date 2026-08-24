@@ -27,10 +27,6 @@ count_paths() {
   awk 'NF { count += 1 } END { print count + 0 }'
 }
 
-count_literal() {
-  awk -v needle="$1" 'index($0, needle) { count += 1 } END { print count + 0 }' "$2"
-}
-
 single_project() {
   local project_list project_count
   project_list="$(find "$GENERATED_PROJECT" -type d -name '*.xcodeproj' -print)"
@@ -94,38 +90,9 @@ DEVELOPER_DIR="$DEVELOPER_DIR_PATH" xcrun safari-web-extension-packager "$PROJEC
 [ -d "$PACKAGER_ROOT/Tab Shelf" ] \
   || fail "The Safari packager did not generate the expected Tab Shelf project."
 mv "$PACKAGER_ROOT" "$GENERATED_PROJECT"
+node scripts/prepare-macos-project.mjs "$GENERATED_PROJECT"
 
 XCODE_PROJECT="$(single_project)"
-PROJECT_SETTINGS="$XCODE_PROJECT/project.pbxproj"
-APP_VIEW_CONTROLLER="$GENERATED_PROJECT/Tab Shelf/Tab Shelf/ViewController.swift"
-[ -f "$PROJECT_SETTINGS" ] && [ ! -L "$PROJECT_SETTINGS" ] \
-  || fail "The generated Xcode project settings are unsafe."
-[ -f "$APP_VIEW_CONTROLLER" ] && [ ! -L "$APP_VIEW_CONTROLLER" ] \
-  || fail "The generated App view controller is unsafe."
-
-GENERATED_OUTER_SETTING='PRODUCT_BUNDLE_IDENTIFIER = "com.jovaii.Tab-Shelf";'
-GENERATED_EXTENSION_SETTING='PRODUCT_BUNDLE_IDENTIFIER = com.jovaii.tabshelf.Extension;'
-[ "$(count_literal "$GENERATED_OUTER_SETTING" "$PROJECT_SETTINGS")" -eq 2 ] \
-  || fail "The generated App identifier settings changed unexpectedly."
-[ "$(count_literal "$GENERATED_EXTENSION_SETTING" "$PROJECT_SETTINGS")" -eq 2 ] \
-  || fail "The generated extension identifier settings changed unexpectedly."
-[ "$(count_literal 'let extensionBundleIdentifier = "com.jovaii.tabshelf.Extension"' "$APP_VIEW_CONTROLLER")" -eq 1 ] \
-  || fail "The generated App extension identifier changed unexpectedly."
-
-/usr/bin/sed -i '' \
-  -e 's/PRODUCT_BUNDLE_IDENTIFIER = "com\.jovaii\.Tab-Shelf";/PRODUCT_BUNDLE_IDENTIFIER = com.jovaii.tabshelf;/g' \
-  -e 's/PRODUCT_BUNDLE_IDENTIFIER = com\.jovaii\.tabshelf\.Extension;/PRODUCT_BUNDLE_IDENTIFIER = com.jovaii.tabshelf.extension;/g' \
-  "$PROJECT_SETTINGS"
-/usr/bin/sed -i '' \
-  -e 's/let extensionBundleIdentifier = "com\.jovaii\.tabshelf\.Extension"/let extensionBundleIdentifier = "com.jovaii.tabshelf.extension"/g' \
-  "$APP_VIEW_CONTROLLER"
-
-[ "$(count_literal "PRODUCT_BUNDLE_IDENTIFIER = $OUTER_IDENTIFIER;" "$PROJECT_SETTINGS")" -eq 2 ] \
-  || fail "The App identifier was not applied to both build configurations."
-[ "$(count_literal "PRODUCT_BUNDLE_IDENTIFIER = $EXTENSION_IDENTIFIER;" "$PROJECT_SETTINGS")" -eq 2 ] \
-  || fail "The extension identifier was not applied to both build configurations."
-[ "$(count_literal 'let extensionBundleIdentifier = "com.jovaii.tabshelf.extension"' "$APP_VIEW_CONTROLLER")" -eq 1 ] \
-  || fail "The App extension identifier was not synchronized."
 
 DEVELOPER_DIR="$DEVELOPER_DIR_PATH" xcrun xcodebuild \
   -project "$XCODE_PROJECT" \
