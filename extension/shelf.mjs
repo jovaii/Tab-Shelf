@@ -8,6 +8,7 @@ import {
   greetingForHour,
   renderShelf,
 } from "./ui/shelf-view.mjs";
+import { applyTheme } from "./ui/theme-runtime.mjs";
 
 const elements = Object.freeze({
   greeting: document.querySelector("#greeting"),
@@ -55,10 +56,12 @@ async function perform(operation, { refreshAfter = false } = {}) {
 async function refresh() {
   setStatus();
   try {
-    const [tabs, currentTab] = await Promise.all([
+    const [tabs, currentTab, preferences] = await Promise.all([
       gateway.listTabs(),
       gateway.getCurrentTab(),
+      gateway.getPreferences(),
     ]);
+    applyTheme(document.documentElement, preferences);
     latestTabs = tabs;
     latestCurrentTab = currentTab;
     const model = buildShelfModel(tabs, {

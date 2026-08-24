@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Theme Studio — Tab Shelf</title>
+    <link rel="stylesheet" href="shared/tokens.css">
+    <link rel="stylesheet" href="settings.css">
+  </head>
+  <body>
+    <div class="background-image" aria-hidden="true"></div>
+    <main class="studio-shell">
+      <header class="studio-header">
+        <div>
+          <p class="product-kicker">Tab Shelf / Appearance</p>
+          <h1>Theme studio</h1>
+          <p class="studio-introduction">
+            Shape a calm browsing desk. Every choice stays inside Safari on this Mac.
+          </p>
+        </div>
+        <button id="open-shelf" class="button button--quiet" type="button">Open shelf</button>
+      </header>
+
+      <p id="settings-status" class="settings-status" role="status" aria-live="polite"></p>
+
+      <div class="settings-layout">
+        <form id="theme-form" class="control-panel" novalidate>
+          <section class="control-section" aria-labelledby="preset-heading">
+            <div class="section-heading">
+              <div>
+                <p class="section-number">01</p>
+                <h2 id="preset-heading">Starting point</h2>
+              </div>
+              <p>Choose an authored palette, then make it yours.</p>
+            </div>
+            <div id="preset-grid" class="preset-grid"></div>
+          </section>
+
+          <section class="control-section" aria-labelledby="background-heading">
+            <div class="section-heading">
+              <div>
+                <p class="section-number">02</p>
+                <h2 id="background-heading">Background</h2>
+              </div>
+              <p>Build a solid field, linear sweep, or soft radial glow.</p>
+            </div>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>Background type</span>
+                <select id="background-kind">
+                  <option value="solid">Solid color</option>
+                  <option value="linear">Linear gradient</option>
+                  <option value="radial">Radial glow</option>
+                </select>
+              </label>
+              <label class="field field--color">
+                <span>Base color</span>
+                <input id="background-color" type="color" value="#e8ece9">
+              </label>
+            </div>
+
+            <div id="gradient-controls" class="gradient-controls">
+              <label class="field field--range">
+                <span>Gradient angle <output id="gradient-angle-value">145°</output></span>
+                <input id="gradient-angle" type="range" min="0" max="360" step="1" value="145">
+              </label>
+              <div class="field">
+                <span>Color stops</span>
+                <div id="gradient-stops" class="gradient-stops"></div>
+                <button id="add-gradient-stop" class="text-button" type="button">+ Add color stop</button>
+              </div>
+            </div>
+
+            <div class="image-field">
+              <label class="file-drop" for="background-image">
+                <span class="file-drop__title">Personal background image</span>
+                <span>PNG, JPEG, or WebP. Optimised locally before saving.</span>
+                <input id="background-image" type="file" accept="image/png,image/jpeg,image/webp">
+              </label>
+              <button id="remove-background-image" class="text-button" type="button">Remove image</button>
+            </div>
+
+            <div class="field-grid field-grid--three">
+              <label class="field">
+                <span>Image fit</span>
+                <select id="image-fit">
+                  <option value="cover">Fill frame</option>
+                  <option value="contain">Show full image</option>
+                  <option value="fill">Stretch to frame</option>
+                </select>
+              </label>
+              <label class="field field--range">
+                <span>Blur <output id="blur-px-value">0 px</output></span>
+                <input id="blur-px" type="range" min="0" max="40" step="1" value="0">
+              </label>
+              <label class="field field--range">
+                <span>Image opacity <output id="image-opacity-value">100%</output></span>
+                <input id="image-opacity" type="range" min="0" max="100" step="1" value="100">
+              </label>
+            </div>
+          </section>
+
+          <section class="control-section" aria-labelledby="surface-heading">
+            <div class="section-heading">
+              <div>
+                <p class="section-number">03</p>
+                <h2 id="surface-heading">Surface</h2>
+              </div>
+              <p>Tune the layer between your background and open-tab cards.</p>
+            </div>
+            <div class="field-grid field-grid--three">
+              <label class="field field--color">
+                <span>Overlay color</span>
+                <input id="overlay-color" type="color" value="#ffffff">
+              </label>
+              <label class="field field--range">
+                <span>Overlay <output id="overlay-opacity-value">12%</output></span>
+                <input id="overlay-opacity" type="range" min="0" max="100" step="1" value="12">
+              </label>
+              <label class="field field--range">
+                <span>Card opacity <output id="card-opacity-value">88%</output></span>
+                <input id="card-opacity" type="range" min="35" max="100" step="1" value="88">
+              </label>
+            </div>
+          </section>
+
+          <section class="control-section" aria-labelledby="type-heading">
+            <div class="section-heading">
+              <div>
+                <p class="section-number">04</p>
+                <h2 id="type-heading">Type &amp; accent</h2>
+              </div>
+              <p>Keep labels clear while setting a personal highlight color.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field">
+                <span>Text appearance</span>
+                <select id="text-mode">
+                  <option value="auto">Automatic</option>
+                  <option value="dark">Dark text</option>
+                  <option value="light">Light text</option>
+                </select>
+              </label>
+              <label class="field field--color">
+                <span>Accent color</span>
+                <input id="accent-color" type="color" value="#2f6f68">
+              </label>
+            </div>
+            <label class="switch-field">
+              <input id="contrast-boost" type="checkbox">
+              <span>
+                <strong>Increase contrast</strong>
+                <small>Strengthens supporting text and card boundaries.</small>
+              </span>
+            </label>
+          </section>
+
+          <section class="control-section control-section--transfer" aria-labelledby="transfer-heading">
+            <div class="section-heading">
+              <div>
+                <p class="section-number">05</p>
+                <h2 id="transfer-heading">Keep or move</h2>
+              </div>
+              <p>Export a small settings file or restore one created by Tab Shelf.</p>
+            </div>
+            <div class="transfer-actions">
+              <button id="export-theme" class="button button--quiet" type="button">Export theme</button>
+              <label class="button button--quiet file-button" for="import-theme">
+                Import theme
+                <input id="import-theme" type="file" accept="application/json,.json">
+              </label>
+              <button id="reset-theme" class="button button--danger" type="button">Reset appearance</button>
+            </div>
+          </section>
+        </form>
+
+        <aside class="settings-preview" aria-labelledby="preview-heading">
+          <div class="settings-preview__frame">
+            <div class="preview-background-image" aria-hidden="true"></div>
+            <div class="preview-overlay" aria-hidden="true"></div>
+            <div class="preview-content">
+              <p class="preview-kicker">Live preview</p>
+              <h2 id="preview-heading">Good evening</h2>
+              <p class="preview-date">Monday, August 24</p>
+              <div class="preview-rule" aria-hidden="true"></div>
+              <div class="preview-card">
+                <div class="preview-card__header">
+                  <span class="preview-marker">J</span>
+                  <strong>Journal</strong>
+                  <small>2 tabs</small>
+                </div>
+                <div class="preview-card__row">A thoughtful place to begin</div>
+                <div class="preview-card__row">Notes for tomorrow</div>
+                <button type="button" disabled>Close both tabs</button>
+              </div>
+              <p class="preview-credit">Tab Shelf by James Li</p>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+    <script type="module" src="settings.mjs"></script>
+  </body>
+</html>
