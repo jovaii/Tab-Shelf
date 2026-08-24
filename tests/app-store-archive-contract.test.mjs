@@ -30,6 +30,9 @@ test("archive path signs for the enrolled team but never uploads", () => {
   assert.match(script, /PATH="\/usr\/local\/bin:\/opt\/homebrew\/bin:\/usr\/bin:\/bin:\/usr\/sbin:\/sbin:\/usr\/libexec"/u);
   assert.match(script, /XCODE_APP="\/Applications\/Xcode\.app"/u);
   assert.match(script, /DEVELOPER_DIR_PATH="\/Applications\/Xcode\.app\/Contents\/Developer"/u);
+  assert.match(script, /unset ARCHIVE_TEAM_ID/u);
+  assert.match(script, /must not be a symbolic link/u);
+  assert.ok(script.indexOf("unset ARCHIVE_TEAM_ID") < script.indexOf('ARCHIVE_TEAM_ID="${APPLE_TEAM_ID:-}"'));
   assert.doesNotMatch(script, /TAB_SHELF_XCODE|TAB_SHELF_DEVELOPER/u);
   assert.match(script, /\/usr\/bin\/xcrun/u);
   assert.match(script, /\/usr\/bin\/xcodebuild/u);
@@ -87,7 +90,7 @@ function fakeTooling(root) {
   const xcodeArgv = join(root, "xcodebuild-argv.bin");
   write(join(bin, "node"), `#!/bin/bash
 printf 'node\\n' >> "$TAB_SHELF_TEST_LOG"
-[ -z "\${APPLE_TEAM_ID+x}" ] || exit 94
+[ -z "\${APPLE_TEAM_ID+x}" ] && [ -z "\${ARCHIVE_TEAM_ID+x}" ] || exit 94
 [ "$1" = "$TAB_SHELF_TEST_ROOT/scripts/check-app-store-readiness.mjs" ] || exit 95
 [ "$2" = "--generated" ] || exit 95
 [ "$3" = "native/generated" ] || exit 95
@@ -95,7 +98,7 @@ exit 0
 `, 0o755);
   write(join(bin, "xcrun"), `#!/bin/bash
 printf 'xcrun\\n' >> "$TAB_SHELF_TEST_LOG"
-[ -z "\${APPLE_TEAM_ID+x}" ] || exit 94
+[ -z "\${APPLE_TEAM_ID+x}" ] && [ -z "\${ARCHIVE_TEAM_ID+x}" ] || exit 94
 exit 0
 `, 0o755);
   write(join(bin, "mkdir"), `#!/bin/bash
@@ -113,7 +116,7 @@ fi
 exec /bin/mkdir "$@"
 `, 0o755);
   write(join(bin, "xcodebuild"), `#!/bin/bash
-[ -z "\${APPLE_TEAM_ID+x}" ] || exit 94
+[ -z "\${APPLE_TEAM_ID+x}" ] && [ -z "\${ARCHIVE_TEAM_ID+x}" ] || exit 94
 if [ "$1" = "-version" ]; then
   printf 'Xcode 26.6\\nBuild version 17F113\\n'
   exit 0
@@ -239,10 +242,26 @@ function runArchive(fixture, overrides = {}) {
     env: {
       ...process.env,
       PATH: `${fixture.bin}:${process.env.PATH}`,
+      APPLE_TEAM_ID: "ABCDEFGHIJ",
+      ARCHIVE_TEAM_ID: "inherited-team-id",
       TAB_SHELF_TEST_ROOT: fixture.root,
       TAB_SHELF_TEST_LOG: fixture.log,
       TAB_SHELF_TEST_XCODE_ARGV: fixture.xcodeArgv,
       TAB_SHELF_TEST_ARCHIVE_PATH: fixture.archivePath,
+      ...overrides,
+    },
+  });
+}
+
+function runPublicArchive(fixture, overrides = {}) {
+  return spawnSync("/bin/bash", ["scripts/archive-app-store.sh"], {
+    cwd: fixture.root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: fixture.bin,
+      APPLE_TEAM_ID: "ABCDEFGHIJ",
+      ARCHIVE_TEAM_ID: "inherited-team-id",
       ...overrides,
     },
   });
@@ -303,6 +322,41 @@ test("public archive entrypoint ignores a fake PATH and exposes no tool override
 
   assert.equal(result.status, 1);
   assert.deepEqual(calls(fixture), []);
+});
+
+test("public archive entrypoint refuses symlinked entrypoint and helper injection routes", (t) => {
+  const cases = ["entrypoint", "helper", "intermediate-directory"];
+  for (const attack of cases) {
+    const fixture = makeArchiveFixture(t);
+    const entry = join(fixture.root, "scripts/archive-app-store.sh");
+    const helper = join(fixture.root, "scripts/archive-app-store-workflow.sh");
+    const marker = join(fixture.root, `${attack}-injected`);
+    const attacker = join(fixture.root, `${attack}-attacker`);
+    mkdirSync(attacker, { recursive: true });
+    write(join(attacker, "archive-app-store-workflow.sh"), `: > "${marker}"\nexit 73\n`);
+
+    if (attack === "entrypoint") {
+      const entryTarget = join(attacker, "archive-app-store.sh");
+      cpSync(entry, entryTarget);
+      rmSync(entry);
+      write(helper, `: > "${marker}"\nexit 73\n`);
+      symlinkSync(entryTarget, entry);
+    } else if (attack === "helper") {
+      rmSync(helper);
+      symlinkSync(join(attacker, "archive-app-store-workflow.sh"), helper);
+    } else {
+      const scriptsTarget = join(attacker, "scripts");
+      mkdirSync(scriptsTarget);
+      cpSync(entry, join(scriptsTarget, "archive-app-store.sh"));
+      cpSync(join(attacker, "archive-app-store-workflow.sh"), join(scriptsTarget, "archive-app-store-workflow.sh"));
+      rmSync(join(fixture.root, "scripts"), { recursive: true, force: true });
+      symlinkSync(scriptsTarget, join(fixture.root, "scripts"));
+    }
+
+    const result = runPublicArchive(fixture);
+    assert.equal(result.status, 1, attack);
+    assert.throws(() => readFileSync(marker, "utf8"), attack);
+  }
 });
 
 test("archive behavior refuses existing and symbolic-link archive targets or a symbolic-link build parent", (t) => {
