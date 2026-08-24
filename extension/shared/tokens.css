@@ -92,3 +92,26 @@
     --card-background: var(--neutral-0);
   }
 }
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  inset-block-start: var(--space-3);
+  inset-inline-start: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  color: var(--color-text-on-accent);
+  background: var(--color-accent-solid);
+  font-family: var(--font-body);
+  font-size: var(--text-body-small);
+  font-weight: 700;
+  text-decoration: none;
+  transform: translateY(calc(-100% - var(--space-6)));
+  transition: transform var(--motion-fast) ease;
+}
+
+.skip-link:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 3px;
+  transform: translateY(0);
+}

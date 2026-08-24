@@ -146,5 +146,8 @@ export function applyTheme(root, value) {
   }
   root.dataset.textMode = variables["--text-mode"];
   root.style.colorScheme = variables["--text-mode"] === "light" ? "dark" : "light";
+  root.ownerDocument
+    ?.querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", validatePreferences(value).background.color);
   return variables;
 }

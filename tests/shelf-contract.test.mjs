@@ -10,6 +10,8 @@ test("new-tab document has one semantic shelf structure", () => {
   const html = source("extension/shelf.html");
 
   assert.match(html, /<html lang="en">/);
+  assert.match(html, /<meta name="theme-color" content="#[a-f0-9]{6}">/iu);
+  assert.match(html, /<a class="skip-link" href="#inventory-title">Skip to open tabs<\/a>/u);
   assert.match(html, /<main class="shelf-app"/);
   assert.match(html, /<h1 id="greeting"/);
   assert.match(html, /<h2 id="inventory-title"/);

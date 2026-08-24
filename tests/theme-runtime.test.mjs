@@ -52,8 +52,16 @@ test("chooses readable automatic text from the visible background", () => {
 
 test("applies every variable and appearance marker to a root", () => {
   const values = new Map();
+  let themeColor = "";
   const root = {
     dataset: {},
+    ownerDocument: {
+      querySelector: () => ({
+        setAttribute: (name, value) => {
+          if (name === "content") themeColor = value;
+        },
+      }),
+    },
     style: {
       colorScheme: "",
       setProperty: (name, value) => values.set(name, value),
@@ -64,6 +72,7 @@ test("applies every variable and appearance marker to a root", () => {
 
   assert.equal(root.dataset.textMode, "dark");
   assert.equal(root.style.colorScheme, "light");
+  assert.equal(themeColor, "#c5deea");
   assert.equal(values.get("--color-accent-solid"), "#6e5ab5");
   assert.deepEqual(result, Object.fromEntries(values));
 });

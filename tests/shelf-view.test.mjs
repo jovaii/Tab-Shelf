@@ -131,10 +131,15 @@ test("renders safe DOM and emits typed actions", () => {
   const titleNode = nodes.find((node) => node.className === "tab-row__title");
   const cardNode = nodes.find((node) => node.className === "site-card");
   const headingNode = nodes.find((node) => node.className === "site-card__title");
+  const groupCloseButtons = nodes.filter((node) => node.className === "group-close-button");
   assert.equal(titleNode.textContent, "A title with <b>markup-like text</b>");
   assert.equal(titleNode.children.length, 0);
   assert.equal(cardNode.attributes.get("aria-labelledby"), "site-alpha.test");
   assert.equal(headingNode.attributes.get("id"), "site-alpha.test");
+  assert.deepEqual(
+    groupCloseButtons.map((node) => node.textContent),
+    ["Close both tabs", "Close tab"],
+  );
   nodes.find((node) => node.dataset.action === "activate").click();
   nodes.find((node) => node.dataset.action === "close-tab").click();
   nodes.find((node) => node.dataset.action === "close-group").click();

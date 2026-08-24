@@ -10,6 +10,8 @@ test("settings page exposes the complete Version 1 controls", () => {
   const html = source("extension/settings.html");
 
   assert.match(html, /<html lang="en">/);
+  assert.match(html, /<meta name="theme-color" content="#[a-f0-9]{6}">/iu);
+  assert.match(html, /<a class="skip-link" href="#theme-form">Skip to theme controls<\/a>/u);
   assert.match(html, /<h1>Theme studio<\/h1>/);
   assert.match(html, /id="preset-grid"/);
   for (const id of [
@@ -33,6 +35,24 @@ test("settings page exposes the complete Version 1 controls", () => {
     "import-theme",
   ]) {
     assert.match(html, new RegExp(`id="${id}"`));
+  }
+  for (const id of [
+    "background-kind",
+    "background-color",
+    "gradient-angle",
+    "background-image",
+    "image-fit",
+    "blur-px",
+    "image-opacity",
+    "overlay-color",
+    "overlay-opacity",
+    "card-opacity",
+    "text-mode",
+    "accent-color",
+    "contrast-boost",
+    "import-theme",
+  ]) {
+    assert.match(html, new RegExp(`id="${id}"[^>]*name="${id}"[^>]*autocomplete="off"`));
   }
   assert.match(html, /<script type="module" src="settings\.mjs"><\/script>/);
   assert.doesNotMatch(html, /https?:\/\//iu);

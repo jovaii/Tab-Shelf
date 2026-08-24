@@ -74,6 +74,7 @@ async function refresh() {
       onClose: (tabId) => perform(() => gateway.closeTabs([tabId]), { refreshAfter: true }),
       onCloseGroup: (tabIds) => perform(() => gateway.closeTabs(tabIds), { refreshAfter: true }),
     });
+    document.documentElement.dataset.renderReady = "true";
   } catch {
     elements.openCount.textContent = "0";
     elements.domainCount.textContent = "0 domains";
@@ -81,6 +82,7 @@ async function refresh() {
     elements.closeExtraShelves.hidden = true;
     elements.grid.replaceChildren();
     setStatus("Safari tab access is unavailable. Enable Tab Shelf for this Safari profile and reload the page.");
+    document.documentElement.dataset.renderReady = "error";
   }
 }
 

@@ -1,0 +1,58 @@
+[
+  {
+    "id": 101,
+    "windowId": 1,
+    "active": false,
+    "title": "A thoughtful place to begin",
+    "url": "https://journal.example.test/notes/begin"
+  },
+  {
+    "id": 102,
+    "windowId": 1,
+    "active": false,
+    "title": "Notes for tomorrow",
+    "url": "https://journal.example.test/notes/tomorrow"
+  },
+  {
+    "id": 201,
+    "windowId": 1,
+    "active": false,
+    "title": "Translate a product brief",
+    "url": "https://language.example.test/translate?document=brief"
+  },
+  {
+    "id": 202,
+    "windowId": 1,
+    "active": false,
+    "title": "Translate a product brief — review copy",
+    "url": "https://language.example.test/translate?document=brief#review"
+  },
+  {
+    "id": 301,
+    "windowId": 2,
+    "active": true,
+    "title": "Senior service designer",
+    "url": "https://careers.example.test/roles/service-designer"
+  },
+  {
+    "id": 401,
+    "windowId": 2,
+    "active": false,
+    "title": "Independent research library",
+    "url": "https://library.example.test/collections/research"
+  },
+  {
+    "id": 501,
+    "windowId": 2,
+    "active": false,
+    "title": "Weekly planning board",
+    "url": "https://planning.example.test/week/35"
+  },
+  {
+    "id": 601,
+    "windowId": 2,
+    "active": false,
+    "title": "Designing calm digital workspaces with a deliberately long title",
+    "url": "https://reading.example.test/articles/calm-workspaces"
+  }
+]

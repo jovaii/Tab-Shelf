@@ -89,6 +89,7 @@ test("popover is local, English, and exposes its two destinations", () => {
   const javascript = readFileSync("extension/popup.mjs", "utf8");
 
   assert.match(html, /<html lang="en">/);
+  assert.match(html, /<meta name="theme-color" content="#[a-f0-9]{6}">/iu);
   assert.match(html, /id="web-tab-count"/);
   assert.match(html, /id="open-shelf"/);
   assert.match(html, /id="open-settings"/);

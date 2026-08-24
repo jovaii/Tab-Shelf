@@ -171,6 +171,8 @@ function gradientStopRow(stop, index) {
       },
     },
   });
+  colorInput.name = `gradient-stop-color-${index + 1}`;
+  colorInput.autocomplete = "off";
   colorInput.value = stop.color;
 
   const positionOutput = element(document, "output", { text: `${stop.position}%` });
@@ -181,6 +183,8 @@ function gradientStopRow(stop, index) {
       min: "0",
       max: "100",
       step: "1",
+      name: `gradient-stop-position-${index + 1}`,
+      autocomplete: "off",
     },
     on: {
       input: (event) => {
@@ -463,11 +467,13 @@ async function start() {
     fillForm();
     bindControls();
     setStatus("Changes save automatically on this Mac");
+    document.documentElement.dataset.renderReady = "true";
   } catch {
     setStatus("Open Theme Studio through the Tab Shelf Safari extension.", "error");
     controls.form.querySelectorAll("button, input, select").forEach((control) => {
       control.disabled = true;
     });
+    document.documentElement.dataset.renderReady = "error";
   }
 }
 

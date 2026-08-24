@@ -4,11 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#e8ece9">
     <title>Theme Studio — Tab Shelf</title>
     <link rel="stylesheet" href="shared/tokens.css">
     <link rel="stylesheet" href="settings.css">
   </head>
   <body>
+    <a class="skip-link" href="#theme-form">Skip to theme controls</a>
     <div class="background-image" aria-hidden="true"></div>
     <main class="studio-shell">
       <header class="studio-header">
@@ -25,7 +27,7 @@
       <p id="settings-status" class="settings-status" role="status" aria-live="polite"></p>
 
       <div class="settings-layout">
-        <form id="theme-form" class="control-panel" novalidate>
+        <form id="theme-form" class="control-panel" autocomplete="off" novalidate>
           <section class="control-section" aria-labelledby="preset-heading">
             <div class="section-heading">
               <div>
@@ -49,7 +51,7 @@
             <div class="field-grid">
               <label class="field">
                 <span>Background type</span>
-                <select id="background-kind">
+                <select id="background-kind" name="background-kind" autocomplete="off">
                   <option value="solid">Solid color</option>
                   <option value="linear">Linear gradient</option>
                   <option value="radial">Radial glow</option>
@@ -57,14 +59,14 @@
               </label>
               <label class="field field--color">
                 <span>Base color</span>
-                <input id="background-color" type="color" value="#e8ece9">
+                <input id="background-color" name="background-color" autocomplete="off" type="color" value="#e8ece9">
               </label>
             </div>
 
             <div id="gradient-controls" class="gradient-controls">
               <label class="field field--range">
                 <span>Gradient angle <output id="gradient-angle-value">145°</output></span>
-                <input id="gradient-angle" type="range" min="0" max="360" step="1" value="145">
+                <input id="gradient-angle" name="gradient-angle" autocomplete="off" type="range" min="0" max="360" step="1" value="145">
               </label>
               <div class="field">
                 <span>Color stops</span>
@@ -77,7 +79,7 @@
               <label class="file-drop" for="background-image">
                 <span class="file-drop__title">Personal background image</span>
                 <span>PNG, JPEG, or WebP. Optimised locally before saving.</span>
-                <input id="background-image" type="file" accept="image/png,image/jpeg,image/webp">
+                <input id="background-image" name="background-image" autocomplete="off" type="file" accept="image/png,image/jpeg,image/webp">
               </label>
               <button id="remove-background-image" class="text-button" type="button">Remove image</button>
             </div>
@@ -85,7 +87,7 @@
             <div class="field-grid field-grid--three">
               <label class="field">
                 <span>Image fit</span>
-                <select id="image-fit">
+                <select id="image-fit" name="image-fit" autocomplete="off">
                   <option value="cover">Fill frame</option>
                   <option value="contain">Show full image</option>
                   <option value="fill">Stretch to frame</option>
@@ -93,11 +95,11 @@
               </label>
               <label class="field field--range">
                 <span>Blur <output id="blur-px-value">0 px</output></span>
-                <input id="blur-px" type="range" min="0" max="40" step="1" value="0">
+                <input id="blur-px" name="blur-px" autocomplete="off" type="range" min="0" max="40" step="1" value="0">
               </label>
               <label class="field field--range">
                 <span>Image opacity <output id="image-opacity-value">100%</output></span>
-                <input id="image-opacity" type="range" min="0" max="100" step="1" value="100">
+                <input id="image-opacity" name="image-opacity" autocomplete="off" type="range" min="0" max="100" step="1" value="100">
               </label>
             </div>
           </section>
@@ -113,15 +115,15 @@
             <div class="field-grid field-grid--three">
               <label class="field field--color">
                 <span>Overlay color</span>
-                <input id="overlay-color" type="color" value="#ffffff">
+                <input id="overlay-color" name="overlay-color" autocomplete="off" type="color" value="#ffffff">
               </label>
               <label class="field field--range">
                 <span>Overlay <output id="overlay-opacity-value">12%</output></span>
-                <input id="overlay-opacity" type="range" min="0" max="100" step="1" value="12">
+                <input id="overlay-opacity" name="overlay-opacity" autocomplete="off" type="range" min="0" max="100" step="1" value="12">
               </label>
               <label class="field field--range">
                 <span>Card opacity <output id="card-opacity-value">88%</output></span>
-                <input id="card-opacity" type="range" min="35" max="100" step="1" value="88">
+                <input id="card-opacity" name="card-opacity" autocomplete="off" type="range" min="35" max="100" step="1" value="88">
               </label>
             </div>
           </section>
@@ -137,7 +139,7 @@
             <div class="field-grid">
               <label class="field">
                 <span>Text appearance</span>
-                <select id="text-mode">
+                <select id="text-mode" name="text-mode" autocomplete="off">
                   <option value="auto">Automatic</option>
                   <option value="dark">Dark text</option>
                   <option value="light">Light text</option>
@@ -145,11 +147,11 @@
               </label>
               <label class="field field--color">
                 <span>Accent color</span>
-                <input id="accent-color" type="color" value="#2f6f68">
+                <input id="accent-color" name="accent-color" autocomplete="off" type="color" value="#2f6f68">
               </label>
             </div>
             <label class="switch-field">
-              <input id="contrast-boost" type="checkbox">
+              <input id="contrast-boost" name="contrast-boost" autocomplete="off" type="checkbox">
               <span>
                 <strong>Increase contrast</strong>
                 <small>Strengthens supporting text and card boundaries.</small>
@@ -169,7 +171,7 @@
               <button id="export-theme" class="button button--quiet" type="button">Export theme</button>
               <label class="button button--quiet file-button" for="import-theme">
                 Import theme
-                <input id="import-theme" type="file" accept="application/json,.json">
+                <input id="import-theme" name="import-theme" autocomplete="off" type="file" accept="application/json,.json">
               </label>
               <button id="reset-theme" class="button button--danger" type="button">Reset appearance</button>
             </div>

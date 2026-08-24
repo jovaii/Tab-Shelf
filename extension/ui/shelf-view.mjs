@@ -50,6 +50,12 @@ function labelForCount(count) {
   return `${count} ${count === 1 ? "tab" : "tabs"}`;
 }
 
+function closeGroupLabel(count) {
+  if (count === 1) return "Close tab";
+  if (count === 2) return "Close both tabs";
+  return `Close all ${count} tabs`;
+}
+
 function markerText(label) {
   const value = typeof label === "string" ? label.trim() : "";
   return (value[0] ?? "•").toLocaleUpperCase("en-US");
@@ -65,6 +71,7 @@ function renderTab(document, tab, callbacks) {
           width: "18",
           height: "18",
           decoding: "async",
+          loading: "lazy",
         },
       })
     : element(document, "span", {
@@ -152,7 +159,7 @@ function renderCard(document, card, callbacks) {
     children: [element(document, "button", {
       className: "group-close-button",
       type: "button",
-      text: `Close all ${countLabel}`,
+      text: closeGroupLabel(card.tabIds.length),
       dataset: { action: "close-group" },
       on: { click: () => callbacks.onCloseGroup([...card.tabIds]) },
     })],
