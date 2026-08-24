@@ -114,6 +114,9 @@ test("WebKit renderer is local-only and captures the two acceptance viewports", 
   assert.match(source, /close-tab/u);
   assert.match(source, /settings\.html/u);
   assert.match(source, /preset-button/u);
+  assert.match(source, /querySelectorAll\('\.preset-button'\)\[4\]/u);
+  assert.match(source, /Storm Horizon/u);
+  assert.ok(source.indexOf("stage=theme-switch") < source.indexOf("takeSnapshot"));
   assert.match(source, /1440[\s\S]*900/u);
   assert.match(source, /900[\s\S]*900/u);
   assert.match(source, /127\.0\.0\.1|localhost/u);

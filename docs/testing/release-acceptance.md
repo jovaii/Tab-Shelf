@@ -12,11 +12,11 @@ The source release and local macOS App are accepted for use on the current Mac. 
 
 ## Verified
 
-- 85/85 automated tests passed.
+- 86/86 automated tests passed.
 - Repository audit passed with zero runtime dependencies and zero prohibited product-identity matches.
 - All JavaScript and shell syntax checks passed.
-- Eight deterministic native WebKit journeys passed: shelf metrics, one-tab close, settings navigation, and Neon Bloom selection at 1440 × 900 and 900 × 900.
-- Both screenshots had exact requested dimensions, uniform cards, readable text, no horizontal overflow, and the exact `Tab Shelf by James Li` credit.
+- Eight deterministic native WebKit journeys passed: shelf metrics, one-tab close, settings navigation, and Storm Horizon selection at 1440 × 900 and 900 × 900.
+- Both screenshots captured the Storm Horizon shelf at the exact requested dimensions with readable light text, uniform cards, no horizontal overflow, and the exact `Tab Shelf by James Li` credit.
 - Domain cards receive stable, distinct local accents and upgrade from an already-loaded readable favicon without adding a network request or host permission.
 - The shelf uses the approved editorial display face and Avenir Next / SF Pro / PingFang body stack with 16px domain headings and 15px tab titles.
 - Four generated icon and package contract groups passed.

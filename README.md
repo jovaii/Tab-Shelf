@@ -9,7 +9,7 @@ Tab Shelf is a Safari-only personal utility for organizing open tabs on the curr
 - Full tab titles with safe two-line truncation and tooltips.
 - Activate a tab, close one tab, close a domain, or close extra shelf pages.
 - Toolbar badge and popover for the current web-tab count.
-- Four authored themes: Quiet Neutral, Mist Teal, Ice Lavender, and Neon Bloom.
+- Five authored themes: Quiet Neutral, Mist Teal, Ice Lavender, Neon Bloom, and Storm Horizon.
 - Custom solid, linear-gradient, radial-gradient, and local-image backgrounds.
 - Adjustable image fit, blur, image opacity, overlay, card opacity, text mode, contrast, and accent color.
 - Local theme export and import through `tab-shelf-preferences-v1.json`.
