@@ -1,6 +1,8 @@
 .DS_Store
 .worktrees/
 build/
+*.xcarchive/
+build/app-store/
 dist/
 native/generated/
 artifacts/qa/
