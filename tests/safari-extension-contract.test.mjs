@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
 const EXTENSION_ROOT = resolve("extension");
 const ICON_SIZES = Object.freeze([16, 32, 48, 64, 96, 128, 256, 512]);
@@ -27,8 +28,8 @@ test("declares only the Safari product contract", () => {
   assert.deepEqual([...value.permissions].sort(), ["storage", "tabs"]);
   assert.equal(value.chrome_url_overrides.newtab, "shelf.html");
   assert.equal(value.action.default_popup, "popup.html");
-  assert.equal(value.background.service_worker, "background.mjs");
-  assert.equal(value.background.type, "module");
+  assert.deepEqual(value.background.scripts, ["background.js"]);
+  assert.equal("type" in value.background, false);
   assert.equal("host_permissions" in value, false);
   assert.equal("content_scripts" in value, false);
   assert.equal("externally_connectable" in value, false);
@@ -40,7 +41,7 @@ test("keeps every declared extension path inside the package", () => {
   for (const path of [
     value.chrome_url_overrides.newtab,
     value.action.default_popup,
-    value.background.service_worker,
+    ...value.background.scripts,
     ...Object.values(value.icons),
     ...Object.values(value.action.default_icon),
   ]) {
@@ -62,7 +63,11 @@ test("contains deterministic PNG artwork at every declared size", () => {
 });
 
 test("background badge counts only ordinary web tabs", async () => {
-  const { countVisibleWebTabs, refreshBadge } = await import("../extension/background.mjs");
+  const context = { URL };
+  const source = `${readFileSync("extension/background.js", "utf8")}\n`
+    + ";globalThis.__tabShelfTest = { countVisibleWebTabs, refreshBadge };";
+  runInNewContext(source, context);
+  const { countVisibleWebTabs, refreshBadge } = context.__tabShelfTest;
   assert.equal(countVisibleWebTabs([
     { url: "https://example.com" },
     { url: "http://localhost:3080" },
@@ -78,7 +83,7 @@ test("background badge counts only ordinary web tabs", async () => {
       setBadgeBackgroundColor: async (value) => calls.push(["color", value]),
     },
   });
-  assert.deepEqual(calls, [
+  assert.deepEqual(structuredClone(calls), [
     ["text", { text: "1" }],
     ["color", { color: "#2f6f68" }],
   ]);

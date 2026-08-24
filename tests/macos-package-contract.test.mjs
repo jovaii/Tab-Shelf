@@ -13,7 +13,11 @@ test("official package flow requires full Xcode and Apple's Safari packager", ()
   assert.match(script, /\/Applications\/Xcode\.app\/Contents\/Developer/u);
   assert.match(script, /Full Xcode is required/u);
   assert.match(script, /xcrun safari-web-extension-packager/u);
-  assert.match(script, /--project-location "?native\/generated"?/u);
+  assert.doesNotMatch(script, /safari-web-extension-packager --help/u);
+  assert.match(script, /mktemp -d \/private\/tmp\/tab-shelf-package\.XXXXXX/u);
+  assert.match(script, /safari-web-extension-packager "\$PROJECT_ROOT\/extension"/u);
+  assert.match(script, /--project-location "\$PACKAGER_ROOT"/u);
+  assert.match(script, /mv "\$PACKAGER_ROOT" "\$GENERATED_PROJECT"/u);
   assert.match(script, /--app-name "Tab Shelf"/u);
   assert.match(script, /--bundle-identifier com\.jovaii\.tabshelf/u);
   for (const flag of ["--macos-only", "--swift", "--copy-resources", "--no-open", "--no-prompt"]) {
@@ -27,12 +31,19 @@ test("package validates one project, one app, exact identifiers, signing, and le
   const script = source("scripts/package-macos.sh");
 
   assert.match(script, /xcodebuild/u);
+  assert.match(script, /-scheme "Tab Shelf"/u);
   assert.match(script, /native\/generated/u);
   assert.match(script, /build\/xcode-derived/u);
   assert.match(script, /build\/Tab Shelf\.app/u);
   assert.match(script, /dist\/Tab-Shelf-1\.0\.0\.zip/u);
   assert.match(script, /CFBundleIdentifier/u);
   assert.match(script, /com\.jovaii\.tabshelf\.extension/u);
+  assert.match(script, /project\.pbxproj/u);
+  assert.match(script, /com\.jovaii\.Tab-Shelf/u);
+  assert.match(script, /com\.jovaii\.tabshelf\.Extension/u);
+  assert.match(script, /sed -i ''/u);
+  assert.match(script, /Set :CFBundleIdentifier \$OUTER_IDENTIFIER/u);
+  assert.match(script, /Set :CFBundleIdentifier \$EXTENSION_IDENTIFIER/u);
   assert.match(script, /codesign --force --sign -/u);
   assert.match(script, /codesign --verify --strict/u);
   assert.match(script, /ditto -c -k --sequesterRsrc --keepParent/u);

@@ -92,7 +92,7 @@ test("installs deterministic local Safari APIs only in preview mode", async () =
 
 test("production extension modules never read preview fixtures", () => {
   const production = [
-    "extension/background.mjs",
+    "extension/background.js",
     "extension/popup.mjs",
     "extension/settings.mjs",
     "extension/shelf.mjs",

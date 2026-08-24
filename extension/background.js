@@ -1,3 +1,5 @@
+"use strict";
+
 const BADGE_COLOR = "#2f6f68";
 
 function isOrdinaryWebUrl(value) {
@@ -10,12 +12,12 @@ function isOrdinaryWebUrl(value) {
   }
 }
 
-export function countVisibleWebTabs(tabs) {
+function countVisibleWebTabs(tabs) {
   if (!Array.isArray(tabs)) throw new TypeError("A tab list is required");
   return tabs.reduce((count, tab) => count + (isOrdinaryWebUrl(tab?.url) ? 1 : 0), 0);
 }
 
-export async function refreshBadge(browserApi) {
+async function refreshBadge(browserApi) {
   if (!browserApi?.tabs?.query
     || !browserApi?.action?.setBadgeText
     || !browserApi?.action?.setBadgeBackgroundColor) {
@@ -28,7 +30,7 @@ export async function refreshBadge(browserApi) {
   return count;
 }
 
-export function installBadgeLifecycle(browserApi) {
+function installBadgeLifecycle(browserApi) {
   const refreshSafely = () => {
     void refreshBadge(browserApi).catch(() => undefined);
   };

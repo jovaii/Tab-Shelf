@@ -69,6 +69,10 @@ test("records the 1.0.0 release and current acceptance boundary", () => {
   assert.match(acceptance, /^# Tab Shelf 1\.0\.0 Release Acceptance$/m);
   assert.match(acceptance, /74\/74 automated tests passed/);
   assert.match(acceptance, /Full Xcode is required/);
+  assert.match(acceptance, /Xcode 26\.6/);
+  assert.match(acceptance, /com\.jovaii\.tabshelf\.extension/);
+  assert.match(acceptance, /ad-hoc/);
+  assert.match(acceptance, /\/Applications\/Tab Shelf\.app/);
   assert.match(acceptance, /Temporary Safari profile acceptance remains manual/);
 });
 
