@@ -136,6 +136,7 @@ archive_acquire_lock() {
 archive_app_store_workflow() {
   [ "$#" -eq 14 ] || archive_workflow_fail "Archive workflow configuration is invalid."
   ARCHIVE_PROJECT_ROOT="$1"
+  unset archive_team_id
   local archive_team_id="$2"
   unset APPLE_TEAM_ID ARCHIVE_TEAM_ID
   ARCHIVE_XCODE_APP="$3"

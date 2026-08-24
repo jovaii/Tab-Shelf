@@ -33,6 +33,11 @@ test("archive path signs for the enrolled team but never uploads", () => {
   assert.match(script, /unset ARCHIVE_TEAM_ID/u);
   assert.match(script, /must not be a symbolic link/u);
   assert.ok(script.indexOf("unset ARCHIVE_TEAM_ID") < script.indexOf('ARCHIVE_TEAM_ID="${APPLE_TEAM_ID:-}"'));
+  const lowerTeamIdUnset = workflow.indexOf("unset archive_team_id");
+  const lowerTeamIdAssignment = workflow.indexOf('local archive_team_id="$2"');
+  assert.notEqual(lowerTeamIdUnset, -1);
+  assert.notEqual(lowerTeamIdAssignment, -1);
+  assert.ok(lowerTeamIdUnset < lowerTeamIdAssignment);
   assert.doesNotMatch(script, /TAB_SHELF_XCODE|TAB_SHELF_DEVELOPER/u);
   assert.match(script, /\/usr\/bin\/xcrun/u);
   assert.match(script, /\/usr\/bin\/xcodebuild/u);
@@ -90,7 +95,7 @@ function fakeTooling(root) {
   const xcodeArgv = join(root, "xcodebuild-argv.bin");
   write(join(bin, "node"), `#!/bin/bash
 printf 'node\\n' >> "$TAB_SHELF_TEST_LOG"
-[ -z "\${APPLE_TEAM_ID+x}" ] && [ -z "\${ARCHIVE_TEAM_ID+x}" ] || exit 94
+[ -z "\${APPLE_TEAM_ID+x}" ] && [ -z "\${ARCHIVE_TEAM_ID+x}" ] && [ -z "\${archive_team_id+x}" ] || exit 94
 [ "$1" = "$TAB_SHELF_TEST_ROOT/scripts/check-app-store-readiness.mjs" ] || exit 95
 [ "$2" = "--generated" ] || exit 95
 [ "$3" = "native/generated" ] || exit 95
@@ -98,7 +103,7 @@ exit 0
 `, 0o755);
   write(join(bin, "xcrun"), `#!/bin/bash
 printf 'xcrun\\n' >> "$TAB_SHELF_TEST_LOG"
-[ -z "\${APPLE_TEAM_ID+x}" ] && [ -z "\${ARCHIVE_TEAM_ID+x}" ] || exit 94
+[ -z "\${APPLE_TEAM_ID+x}" ] && [ -z "\${ARCHIVE_TEAM_ID+x}" ] && [ -z "\${archive_team_id+x}" ] || exit 94
 exit 0
 `, 0o755);
   write(join(bin, "mkdir"), `#!/bin/bash
@@ -116,7 +121,7 @@ fi
 exec /bin/mkdir "$@"
 `, 0o755);
   write(join(bin, "xcodebuild"), `#!/bin/bash
-[ -z "\${APPLE_TEAM_ID+x}" ] && [ -z "\${ARCHIVE_TEAM_ID+x}" ] || exit 94
+[ -z "\${APPLE_TEAM_ID+x}" ] && [ -z "\${ARCHIVE_TEAM_ID+x}" ] && [ -z "\${archive_team_id+x}" ] || exit 94
 if [ "$1" = "-version" ]; then
   printf 'Xcode 26.6\\nBuild version 17F113\\n'
   exit 0
@@ -244,6 +249,7 @@ function runArchive(fixture, overrides = {}) {
       PATH: `${fixture.bin}:${process.env.PATH}`,
       APPLE_TEAM_ID: "ABCDEFGHIJ",
       ARCHIVE_TEAM_ID: "inherited-team-id",
+      archive_team_id: "inherited-lowercase-team-id",
       TAB_SHELF_TEST_ROOT: fixture.root,
       TAB_SHELF_TEST_LOG: fixture.log,
       TAB_SHELF_TEST_XCODE_ARGV: fixture.xcodeArgv,
@@ -262,6 +268,7 @@ function runPublicArchive(fixture, overrides = {}) {
       PATH: fixture.bin,
       APPLE_TEAM_ID: "ABCDEFGHIJ",
       ARCHIVE_TEAM_ID: "inherited-team-id",
+      archive_team_id: "inherited-lowercase-team-id",
       ...overrides,
     },
   });
@@ -305,7 +312,7 @@ test("archive behavior creates a clean build parent and verifies one sealed bund
   assert.throws(() => readFileSync(join(fixture.archiveRoot, ".tab-shelf-archive.lock"), "utf8"));
 });
 
-test("public archive entrypoint ignores a fake PATH and exposes no tool override route", (t) => {
+test("public archive entrypoint accepts a relative invocation before validating Team ID", (t) => {
   const fixture = makeArchiveFixture(t);
   const result = spawnSync("/bin/bash", ["scripts/archive-app-store.sh"], {
     cwd: fixture.root,
@@ -314,6 +321,8 @@ test("public archive entrypoint ignores a fake PATH and exposes no tool override
       ...process.env,
       PATH: fixture.bin,
       APPLE_TEAM_ID: "not-a-team",
+      ARCHIVE_TEAM_ID: "inherited-team-id",
+      archive_team_id: "inherited-lowercase-team-id",
       TAB_SHELF_XCODE_APP: fixture.xcodeApp,
       TAB_SHELF_DEVELOPER_DIR: fixture.developerDir,
       TAB_SHELF_TEST_LOG: fixture.log,
@@ -321,11 +330,20 @@ test("public archive entrypoint ignores a fake PATH and exposes no tool override
   });
 
   assert.equal(result.status, 1);
+  assert.equal(
+    result.stderr,
+    "Tab Shelf App Store archive stopped: APPLE_TEAM_ID must be set to a valid enrolled team identifier.\n",
+  );
   assert.deepEqual(calls(fixture), []);
 });
 
 test("public archive entrypoint refuses symlinked entrypoint and helper injection routes", (t) => {
-  const cases = ["entrypoint", "helper", "intermediate-directory"];
+  const expectedErrors = {
+    entrypoint: "The archive entrypoint must not be a symbolic link.",
+    helper: "The archive workflow helper must be a regular file and must not be a symbolic link.",
+    "intermediate-directory": "The archive script directory must not be a symbolic link.",
+  };
+  const cases = Object.keys(expectedErrors);
   for (const attack of cases) {
     const fixture = makeArchiveFixture(t);
     const entry = join(fixture.root, "scripts/archive-app-store.sh");
@@ -355,7 +373,12 @@ test("public archive entrypoint refuses symlinked entrypoint and helper injectio
 
     const result = runPublicArchive(fixture);
     assert.equal(result.status, 1, attack);
-    assert.throws(() => readFileSync(marker, "utf8"), attack);
+    assert.equal(
+      result.stderr,
+      `Tab Shelf App Store archive stopped: ${expectedErrors[attack]}\n`,
+      attack,
+    );
+    assert.throws(() => lstatSync(marker), { code: "ENOENT" }, attack);
   }
 });
 

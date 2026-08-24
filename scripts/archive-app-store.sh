@@ -16,9 +16,11 @@ SCRIPT_DIRECTORY_INPUT="$(/usr/bin/dirname -- "$ENTRYPOINT_PATH")" \
   || fail "Unable to resolve the script directory."
 [ -d "$SCRIPT_DIRECTORY_INPUT" ] && [ ! -L "$SCRIPT_DIRECTORY_INPUT" ] \
   || fail "The archive script directory must not be a symbolic link."
+SCRIPT_DIRECTORY_LOGICAL="$(cd -- "$SCRIPT_DIRECTORY_INPUT" && pwd -L)" \
+  || fail "Unable to resolve the script directory."
 SCRIPT_DIRECTORY="$(cd -- "$SCRIPT_DIRECTORY_INPUT" && pwd -P)" \
   || fail "Unable to resolve the script directory."
-[ "$SCRIPT_DIRECTORY" = "$SCRIPT_DIRECTORY_INPUT" ] \
+[ "$SCRIPT_DIRECTORY" = "$SCRIPT_DIRECTORY_LOGICAL" ] \
   || fail "The archive script directory must not cross a symbolic link."
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIRECTORY/.." && pwd -P)" \
   || fail "Unable to resolve the repository root."
