@@ -172,11 +172,17 @@ function makeFixture(t, { projectSource = generatedProject(), duplicateProject =
   const hostSource = join(root, "native/host");
 
   cpSync(join(SOURCE_ROOT, "native/host"), hostSource, { recursive: true });
+  cpSync(
+    join(SOURCE_ROOT, "native/release"),
+    join(root, "native/release"),
+    { recursive: true },
+  );
   write(join(project, "project.pbxproj"), projectSource);
   write(
     join(appTarget, "ViewController.swift"),
     'let extensionBundleIdentifier = "com.jovaii.tabshelf.Extension"\n',
   );
+  write(join(appTarget, "AppDelegate.swift"), "generated App delegate");
   write(join(appTarget, "Resources/Icon.png"), "generated icon");
   write(join(appTarget, "Resources/Base.lproj/Main.html"), "generated html");
   write(join(appTarget, "Resources/Style.css"), "generated css");
@@ -202,6 +208,8 @@ function snapshotOutputs(fixture) {
       return [output, readFileSync(output)];
     }),
     [join(fixture.appTarget, "Resources/Icon.png"), readFileSync(join(fixture.appTarget, "Resources/Icon.png"))],
+    [join(fixture.appTarget, "AppDelegate.swift"), readFileSync(join(fixture.appTarget, "AppDelegate.swift"))],
+    [join(fixture.extensionTarget, "SafariWebExtensionHandler.swift"), readFileSync(join(fixture.extensionTarget, "SafariWebExtensionHandler.swift"))],
   ]);
 }
 
@@ -261,6 +269,23 @@ test("prepares one generated Xcode project from tracked release values and host 
     );
   }
   assert.equal(readFileSync(join(fixture.appTarget, "Resources/Icon.png"), "utf8"), "generated icon");
+  assert.equal(
+    readFileSync(join(fixture.appTarget, "AppDelegate.swift"), "utf8"),
+    readFileSync(
+      join(fixture.root, "native/release/xcode-26.6/Tab Shelf/Tab Shelf/AppDelegate.swift"),
+      "utf8",
+    ),
+  );
+  assert.equal(
+    readFileSync(join(fixture.extensionTarget, "SafariWebExtensionHandler.swift"), "utf8"),
+    readFileSync(
+      join(
+        fixture.root,
+        "native/release/xcode-26.6/Tab Shelf/Tab Shelf Extension/SafariWebExtensionHandler.swift",
+      ),
+      "utf8",
+    ),
+  );
 
   assert.ok(Object.isFrozen(result));
   assert.deepEqual(result, {

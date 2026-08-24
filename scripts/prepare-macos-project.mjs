@@ -38,6 +38,17 @@ const TEMPLATE_ANCHORS = Object.freeze({
     ["function showExtensionState(enabled, usesSettingsName) {", 1, "state function"],
     ["window.showExtensionState = showExtensionState;", 1, "bridge export"],
   ],
+  "AppDelegate.swift": [
+    ["@main", 1, "App entry point"],
+    ["class AppDelegate: NSObject, NSApplicationDelegate", 1, "App delegate declaration"],
+    ["applicationShouldTerminateAfterLastWindowClosed", 1, "window termination policy"],
+  ],
+  "SafariWebExtensionHandler.swift": [
+    ["import SafariServices", 1, "Safari services import"],
+    ["class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling", 1, "handler declaration"],
+    ["func beginRequest(with context: NSExtensionContext)", 1, "request entry point"],
+    ["context.completeRequest(", 1, "request completion"],
+  ],
 });
 
 export function replaceExact(source, before, after, expectedCount, label) {
@@ -544,6 +555,20 @@ export function validatePreparedProjectSettings(source) {
   return Object.freeze({ configurations: configurations.length, networkEntitlement: "off" });
 }
 
+export function validatePreparedProjectProfile(source, expected) {
+  const mask = codeMask(source);
+  for (const [key, value] of Object.entries(expected)) {
+    const pattern = new RegExp(`^[\\t ]*${key} = ([^;\\r\\n]+);`, "gmu");
+    const values = [...source.matchAll(pattern)]
+      .filter((match) => mask[match.index + match[0].indexOf(key)])
+      .map((match) => match[1].trim());
+    if (values.length !== 1 || values[0] !== value) {
+      throw new Error(`generated project profile ${key} is unsupported`);
+    }
+  }
+  return Object.freeze({ profile: "supported" });
+}
+
 function validateTemplate(label, contents) {
   if (contents.length === 0) throw new Error(`tracked ${label} must not be empty`);
   const source = contents.toString("utf8");
@@ -556,12 +581,27 @@ function sameFile(left, right) {
   return left.dev === right.dev && left.ino === right.ino;
 }
 
-function openVerifiedFile(path, label) {
+function matchesExpectedIdentity(status, expectedIdentity) {
+  if (!expectedIdentity) return true;
+  return (
+    expectedIdentity.type === "file" &&
+    status.dev === expectedIdentity.device &&
+    status.ino === expectedIdentity.inode &&
+    status.size === expectedIdentity.size &&
+    (status.mode & 0o777) === expectedIdentity.mode
+  );
+}
+
+function openVerifiedFile(path, label, { expectedIdentity, afterInspect } = {}) {
   const inspected = fs.lstatSync(path);
   if (inspected.isSymbolicLink()) {
     throw new Error(`${label} must not be a symbolic link: ${path}`);
   }
   if (!inspected.isFile()) throw new Error(`${label} must be a regular file: ${path}`);
+  if (!matchesExpectedIdentity(inspected, expectedIdentity)) {
+    throw new Error(`${label} changed during validation: ${path}`);
+  }
+  afterInspect?.();
 
   let descriptor;
   try {
@@ -670,6 +710,8 @@ export function readVerifiedRepositoryFile({
   root = process.cwd(),
   candidate,
   label = "repository file",
+  expectedIdentity,
+  afterInspect,
 }) {
   const resolved = resolveVerifiedRepositoryPath({
     root,
@@ -677,7 +719,7 @@ export function readVerifiedRepositoryFile({
     label,
     type: "file",
   });
-  const handle = openVerifiedFile(resolved.path, label);
+  const handle = openVerifiedFile(resolved.path, label, { expectedIdentity, afterInspect });
   try {
     const contents = fs.readFileSync(handle.descriptor);
     revalidateHandle(handle);
@@ -866,6 +908,12 @@ export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}
     "tracked host templates",
     "directory",
   );
+  const releaseProfileRoot = resolveExistingInside(
+    repositoryRoot,
+    join(repositoryRoot, "native/release/xcode-26.6", RELEASE.productName),
+    "tracked Xcode 26.6 release profile",
+    "directory",
+  );
   const copies = [
     {
       label: "ViewController.swift",
@@ -886,6 +934,19 @@ export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}
       label: "Script.js",
       source: join(hostRoot, "Script.js"),
       destination: join(appTarget, "Resources/Script.js"),
+    },
+    {
+      label: "AppDelegate.swift",
+      source: join(releaseProfileRoot, RELEASE.productName, "AppDelegate.swift"),
+      destination: join(appTarget, "AppDelegate.swift"),
+    },
+    {
+      label: "SafariWebExtensionHandler.swift",
+      source: join(
+        releaseProfileRoot,
+        `${RELEASE.productName} Extension/SafariWebExtensionHandler.swift`,
+      ),
+      destination: join(extensionTarget, "SafariWebExtensionHandler.swift"),
     },
   ].map(({ label, source, destination }, index) => ({
     label,

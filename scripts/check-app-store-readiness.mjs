@@ -6,10 +6,13 @@ import {
   countSensitiveArtifacts,
   inventoryTree,
   runAudit,
+  sha256,
 } from "./audit-repository.mjs";
+import { APP_STORE_RELEASE_PROFILE } from "./app-store-release-profile.mjs";
 import {
   readVerifiedRepositoryFile,
   resolveVerifiedRepositoryPath,
+  validatePreparedProjectProfile,
   validatePreparedProjectSettings,
 } from "./prepare-macos-project.mjs";
 import { RELEASE, validateReleaseVersions } from "./release-config.mjs";
@@ -31,39 +34,25 @@ const HOST_TEMPLATES = Object.freeze([
   "Style.css",
   "Script.js",
 ]);
-const APPLE_APP_FILES = Object.freeze([
-  "AppDelegate.swift",
-  "Assets.xcassets/AccentColor.colorset/Contents.json",
-  "Assets.xcassets/AppIcon.appiconset/Contents.json",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-128@1x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-128@2x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-16@1x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-16@2x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-256@1x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-256@2x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-32@1x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-32@2x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-512@1x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-512@2x.png",
-  "Assets.xcassets/Contents.json",
-  "Assets.xcassets/LargeIcon.imageset/Contents.json",
-  "Base.lproj/Main.storyboard",
-  "Info.plist",
-  "Resources/Icon.png",
-]);
-const APPLE_PROJECT_FILES = Object.freeze([
-  "project.pbxproj",
-  "project.xcworkspace/contents.xcworkspacedata",
-]);
 const APPLE_PROJECT_DIRECTORIES = Object.freeze([
+  "project.xcworkspace/xcshareddata",
+  "project.xcworkspace/xcshareddata/swiftpm",
   "project.xcworkspace/xcshareddata/swiftpm/configuration",
 ]);
 const REMOTE_EMBEDDED_RESOURCE = /<[^>]*(?:https?:)?\/\/[^>]*>/iu;
 const REMOTE_CSS_RESOURCE = /(?:@import\s+(?:url\()?|url\()\s*["']?\s*(?:https?:)?\/\//iu;
-const RUNTIME_NETWORK_API = /\b(?:EventSource|WebSocket|XMLHttpRequest|fetch)\s*\(|\bnavigator\.sendBeacon\s*\(/u;
+const RUNTIME_NETWORK_APIS = Object.freeze([
+  /\b(?:EventSource|WebSocket|WebTransport|XMLHttpRequest|fetch|importScripts)\s*\(/u,
+  /\b(?:globalThis|self|window)\s*(?:\.\s*|\[\s*["'])(?:EventSource|WebSocket|WebTransport|XMLHttpRequest|fetch|importScripts)(?:["']\s*\])?\s*\(/u,
+  /\bnavigator\s*(?:\.\s*sendBeacon|\[\s*["']sendBeacon["']\s*\])\s*\(/u,
+  /\b(?:RTCDataChannel|RTCPeerConnection)\s*\(/u,
+]);
 const SWIFT_NETWORK_APIS = Object.freeze([
-  /(?:^|\n)\s*import\s+(?:CFNetwork|Network)\b/u,
-  /\b(?:CFHost|CFHTTPMessage|CFNetwork|NSURLConnection|NWBrowser|NWConnection|NWListener|NWPathMonitor|URLRequest|URLSession|URLSessionConfiguration|URLSessionTask)\b/u,
+  /(?:^|\n)\s*import\s+(?:CFNetwork|Darwin|Glibc|Network)\b/u,
+  /\b(?:CFHost|CFHTTPMessage|CFNetwork|CFReadStreamCreateForHTTPRequest|CFReadStreamCreateForStreamedHTTPRequest|NSURLConnection|NWBrowser|NWConnection|NWListener|NWPathMonitor|URLRequest|URLSession|URLSessionConfiguration|URLSessionTask|URLSessionWebSocketTask)\b/u,
+  /\b(?:InputStream|NSStream|OutputStream|Stream)\s*\.\s*getStreamsToHost\b/u,
+  /\b(?:InputStream|OutputStream)\s*\([^)]*(?:host|url)\s*:/u,
+  /\b(?:accept|bind|connect|getaddrinfo|gethostbyname|listen|recv|recvfrom|send|sendto|socket)\s*\(/u,
   /\b(?:Data|NSData|String)\s*\(\s*contentsOf\s*:/u,
 ]);
 const SAFE_HANDLER_ANCHORS = Object.freeze([
@@ -109,9 +98,14 @@ function safeDirectory(root, candidate, scope, label) {
   }
 }
 
-function safeFile(root, candidate, scope, label) {
+function safeFile(root, candidate, scope, label, expectedIdentity) {
   try {
-    const file = readVerifiedRepositoryFile({ root, candidate, label });
+    const file = readVerifiedRepositoryFile({
+      root,
+      candidate,
+      label,
+      expectedIdentity,
+    });
     if (file.contents.length === 0) fail(`${scope}_file_unavailable label=${label}`);
     return file;
   } catch (error) {
@@ -180,6 +174,7 @@ function scanProductPolicy({ root, trees, scope }) {
         join(tree.root, entry.path),
         scope,
         "product_source",
+        entry,
       ).contents.toString("utf8");
       if (extension === ".html" && REMOTE_EMBEDDED_RESOURCE.test(source)) {
         fail(`${scope}_remote_resource_found`);
@@ -187,7 +182,10 @@ function scanProductPolicy({ root, trees, scope }) {
       if ((extension === ".css" || extension === ".html") && REMOTE_CSS_RESOURCE.test(source)) {
         fail(`${scope}_remote_resource_found`);
       }
-      if ((extension === ".js" || extension === ".mjs") && RUNTIME_NETWORK_API.test(source)) {
+      if (
+        (extension === ".html" || extension === ".js" || extension === ".mjs") &&
+        RUNTIME_NETWORK_APIS.some((pattern) => pattern.test(source))
+      ) {
         fail(`${scope}_network_api_found runtime network APIs`);
       }
       if (extension === ".swift" && SWIFT_NETWORK_APIS.some((pattern) => pattern.test(source))) {
@@ -222,16 +220,22 @@ function runSafeAudit(options, scope) {
   }
 }
 
-function addExpectedDirectory(expected, path) {
+function addExpectedDirectory(expected, path, mode = 0o755) {
+  const leaf = path;
   let current = path;
   while (current && current !== ".") {
-    if (!expected.has(current)) expected.set(current, "directory");
+    if (!expected.has(current)) {
+      expected.set(
+        current,
+        Object.freeze({ type: "directory", mode: current === leaf ? mode : 0o755 }),
+      );
+    }
     current = dirname(current);
   }
 }
 
-function addExpectedFile(expected, path) {
-  expected.set(path, "file");
+function addExpectedFile(expected, path, mode = 0o644) {
+  expected.set(path, Object.freeze({ type: "file", mode }));
   addExpectedDirectory(expected, dirname(path));
 }
 
@@ -243,25 +247,28 @@ function buildGeneratedContract(sourceExtensionInventory) {
   const project = join(container, `${RELEASE.productName}.xcodeproj`);
   addExpectedDirectory(expected, container);
 
-  for (const path of APPLE_PROJECT_FILES) addExpectedFile(expected, join(project, path));
+  addExpectedFile(expected, join(project, "project.pbxproj"));
   for (const path of APPLE_PROJECT_DIRECTORIES) {
-    addExpectedDirectory(expected, join(project, path));
+    addExpectedDirectory(expected, join(project, path), 0o777);
   }
-  for (const path of APPLE_APP_FILES) addExpectedFile(expected, join(app, path));
-  for (const path of [
-    "ViewController.swift",
-    "Resources/Base.lproj/Main.html",
-    "Resources/Style.css",
-    "Resources/Script.js",
+  for (const [path, profile] of Object.entries(APP_STORE_RELEASE_PROFILE.generatedFiles)) {
+    addExpectedFile(expected, path, profile.mode);
+  }
+  for (const [source, output] of [
+    ["ViewController.swift", "ViewController.swift"],
+    ["Base.lproj/Main.html", "Resources/Base.lproj/Main.html"],
+    ["Style.css", "Resources/Style.css"],
+    ["Script.js", "Resources/Script.js"],
   ]) {
-    addExpectedFile(expected, join(app, path));
+    addExpectedFile(expected, join(app, output), 0o644);
   }
-  addExpectedFile(expected, join(extension, "Info.plist"));
-  addExpectedFile(expected, join(extension, "SafariWebExtensionHandler.swift"));
   addExpectedDirectory(expected, join(extension, "Resources"));
   for (const entry of sourceExtensionInventory) {
     const output = join(extension, "Resources", entry.path);
-    expected.set(output, entry.type);
+    expected.set(
+      output,
+      Object.freeze({ type: entry.type, mode: entry.type === "file" ? 0o644 : 0o755 }),
+    );
     addExpectedDirectory(expected, dirname(output));
   }
   return expected;
@@ -281,9 +288,13 @@ function validateGeneratedShape(inventory, expected) {
   if (unexpected.length > 0) {
     fail(`generated_resource_tree_invalid reason=unexpected count=${unexpected.length}`);
   }
-  const wrongType = inventory.filter(({ path, type }) => expected.get(path) !== type);
+  const wrongType = inventory.filter(({ path, type }) => expected.get(path)?.type !== type);
   if (wrongType.length > 0) {
     fail(`generated_resource_tree_invalid reason=type count=${wrongType.length}`);
+  }
+  const wrongMode = inventory.filter(({ path, mode }) => expected.get(path)?.mode !== mode);
+  if (wrongMode.length > 0) {
+    fail(`generated_resource_tree_invalid reason=mode count=${wrongMode.length}`);
   }
   const aliases = new Set(
     inventory
@@ -308,16 +319,28 @@ function validateGeneratedShape(inventory, expected) {
 
 function compareFiles(root, pairs) {
   let changed = 0;
-  for (const [source, generated] of pairs) {
-    const sourceContents = safeFile(root, source, "source", "product_source").contents;
-    const generatedContents = safeFile(root, generated, "generated", "product_resource").contents;
+  for (const { source, generated, sourceIdentity, generatedIdentity } of pairs) {
+    const sourceContents = safeFile(
+      root,
+      source,
+      "source",
+      "product_source",
+      sourceIdentity,
+    ).contents;
+    const generatedContents = safeFile(
+      root,
+      generated,
+      "generated",
+      "product_resource",
+      generatedIdentity,
+    ).contents;
     if (!sourceContents.equals(generatedContents)) changed += 1;
   }
   if (changed > 0) fail(`generated_resource_tree_invalid reason=changed count=${changed}`);
 }
 
-function validateGeneratedHandler(root, handlerPath) {
-  const source = safeFile(root, handlerPath, "generated", "extension_handler")
+function validateGeneratedHandler(root, handlerPath, identity) {
+  const source = safeFile(root, handlerPath, "generated", "extension_handler", identity)
     .contents.toString("utf8");
   if (SWIFT_NETWORK_APIS.some((pattern) => pattern.test(source))) {
     fail("generated_network_api_found");
@@ -330,6 +353,147 @@ function validateGeneratedHandler(root, handlerPath) {
   if (SAFE_HANDLER_ANCHORS.some((anchor) => countExact(source, anchor) !== 1)) {
     fail("generated_handler_invalid");
   }
+}
+
+function executableExtension(path) {
+  return [".html", ".js", ".mjs", ".swift"].includes(
+    extname(path).toLocaleLowerCase("en-US"),
+  );
+}
+
+function validateSourceReleaseContent(root, trees) {
+  const entries = new Map();
+  for (const tree of trees) {
+    for (const entry of tree.inventory) {
+      if (entry.type !== "file" || !executableExtension(entry.path)) continue;
+      entries.set(join(tree.prefix, entry.path), { ...entry, absoluteRoot: tree.root });
+    }
+  }
+  const expected = APP_STORE_RELEASE_PROFILE.executableSourceDigests;
+  const missing = Object.keys(expected).filter((path) => !entries.has(path));
+  const unexpected = [...entries.keys()].filter((path) => !Object.hasOwn(expected, path));
+  if (missing.length > 0) {
+    fail(`source_release_content_invalid reason=missing count=${missing.length}`);
+  }
+  if (unexpected.length > 0) {
+    fail(`source_release_content_invalid reason=unexpected count=${unexpected.length}`);
+  }
+  let changed = 0;
+  for (const [path, digest] of Object.entries(expected)) {
+    const entry = entries.get(path);
+    const contents = safeFile(
+      root,
+      join(entry.absoluteRoot, entry.path),
+      "source",
+      "release_source",
+      entry,
+    ).contents;
+    if (sha256(contents) !== digest) changed += 1;
+  }
+  if (changed > 0) fail(`source_release_content_invalid reason=changed count=${changed}`);
+}
+
+function validateSourceProductModes(inventories) {
+  const changed = inventories.flat().filter(({ type, mode }) => {
+    if (type === "file") return mode !== 0o644;
+    if (type === "directory") return mode !== 0o755;
+    return false;
+  });
+  if (changed.length > 0) {
+    fail(`source_release_content_invalid reason=mode count=${changed.length}`);
+  }
+}
+
+function pngDimensions(contents) {
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  if (
+    contents.length < 24 ||
+    !contents.subarray(0, 8).equals(signature) ||
+    contents.toString("ascii", 12, 16) !== "IHDR"
+  ) {
+    return undefined;
+  }
+  return Object.freeze({
+    width: contents.readUInt32BE(16),
+    height: contents.readUInt32BE(20),
+  });
+}
+
+function validateGeneratedProfileFiles(root, generatedRoot, generatedEntries) {
+  let executableChanged = 0;
+  let profileChanged = 0;
+  let invalidPng = 0;
+  for (const [generatedPath, profile] of Object.entries(APP_STORE_RELEASE_PROFILE.generatedFiles)) {
+    const profileContents = safeFile(
+      root,
+      profile.template,
+      "source",
+      "release_profile",
+    ).contents;
+    if (sha256(profileContents) !== profile.digest) fail("source_release_profile_invalid");
+    const generatedContents = safeFile(
+      root,
+      join(generatedRoot, generatedPath),
+      "generated",
+      "profile_resource",
+      generatedEntries.get(generatedPath),
+    ).contents;
+    if (profile.png) {
+      const dimensions = pngDimensions(generatedContents);
+      if (
+        !dimensions ||
+        dimensions.width !== profile.png.width ||
+        dimensions.height !== profile.png.height
+      ) {
+        invalidPng += 1;
+        continue;
+      }
+    }
+    if (!generatedContents.equals(profileContents)) {
+      if (generatedPath.endsWith(".swift")) executableChanged += 1;
+      else profileChanged += 1;
+    }
+  }
+  if (invalidPng > 0) {
+    fail(`generated_profile_content_invalid reason=png count=${invalidPng}`);
+  }
+  if (executableChanged > 0) {
+    fail(`generated_release_content_invalid reason=changed count=${executableChanged}`);
+  }
+  if (profileChanged > 0) {
+    fail(`generated_profile_content_invalid reason=changed count=${profileChanged}`);
+  }
+}
+
+function validateGeneratedProfile(root, projectPath, projectIdentity, appInfoPath, appInfoIdentity) {
+  const project = safeFile(
+    root,
+    projectPath,
+    "generated",
+    "project_profile",
+    projectIdentity,
+  ).contents.toString("utf8");
+  const info = safeFile(
+    root,
+    appInfoPath,
+    "generated",
+    "converter_profile",
+    appInfoIdentity,
+  ).contents.toString("utf8");
+  const expected = APP_STORE_RELEASE_PROFILE.xcode;
+  try {
+    validatePreparedProjectProfile(project, {
+      objectVersion: expected.objectVersion,
+      LastSwiftUpdateCheck: expected.lastSwiftUpdateCheck,
+      LastUpgradeCheck: expected.lastUpgradeCheck,
+    });
+  } catch {
+    fail("generated_profile_unsupported");
+  }
+  if (
+    countExact(info, `<string>${APP_STORE_RELEASE_PROFILE.safariConverter.version}</string>`) !== 1
+  ) fail("generated_profile_unsupported");
+  return project;
 }
 
 function projectError(error) {
@@ -360,6 +524,12 @@ export function checkSourceReadiness({
     "native/host",
     "source",
     "native_host_template",
+  ).path;
+  const releaseProfileRoot = safeDirectory(
+    repositoryRoot,
+    "native/release/xcode-26.6",
+    "source",
+    "release_profile",
   ).path;
   const packageManifest = readJSON(
     repositoryRoot,
@@ -404,15 +574,34 @@ export function checkSourceReadiness({
 
   const extensionInventory = safeInventory(extensionRoot, "source");
   const hostInventory = safeInventory(hostRoot, "source");
-  assertNoTreeSymlinks([extensionInventory, hostInventory], "source");
+  const releaseProfileInventory = safeInventory(releaseProfileRoot, "source");
+  assertNoTreeSymlinks(
+    [extensionInventory, hostInventory, releaseProfileInventory],
+    "source",
+  );
+  validateSourceProductModes([
+    extensionInventory,
+    hostInventory,
+    releaseProfileInventory,
+  ]);
   scanProductPolicy({
     root: repositoryRoot,
     trees: [
       { root: extensionRoot, inventory: extensionInventory },
       { root: hostRoot, inventory: hostInventory },
+      { root: releaseProfileRoot, inventory: releaseProfileInventory },
     ],
     scope: "source",
   });
+  validateSourceReleaseContent(repositoryRoot, [
+    { prefix: "extension", root: extensionRoot, inventory: extensionInventory },
+    { prefix: "native/host", root: hostRoot, inventory: hostInventory },
+    {
+      prefix: "native/release/xcode-26.6",
+      root: releaseProfileRoot,
+      inventory: releaseProfileInventory,
+    },
+  ]);
   runSafeAudit({ root: repositoryRoot, prohibitedTermsFile }, "source");
 
   return Object.freeze({
@@ -455,8 +644,17 @@ export function checkGeneratedReadiness({
   ).path;
   const sourceExtensionInventory = safeInventory(sourceExtensionRoot, "source");
   assertNoTreeSymlinks([sourceExtensionInventory], "source");
+  const sourceHostRoot = safeDirectory(
+    repositoryRoot,
+    "native/host",
+    "source",
+    "native_host_template",
+  ).path;
+  const sourceHostInventory = safeInventory(sourceHostRoot, "source");
+  assertNoTreeSymlinks([sourceHostInventory], "source");
   const expected = buildGeneratedContract(sourceExtensionInventory);
   validateGeneratedShape(generatedInventory, expected);
+  const generatedEntries = new Map(generatedInventory.map((entry) => [entry.path, entry]));
 
   runSafeAudit({
     root: repositoryRoot,
@@ -490,13 +688,21 @@ export function checkGeneratedReadiness({
   });
 
   const handlerPath = join(extensionTarget, "SafariWebExtensionHandler.swift");
-  validateGeneratedHandler(repositoryRoot, handlerPath);
+  validateGeneratedHandler(
+    repositoryRoot,
+    handlerPath,
+    generatedEntries.get(join(RELEASE.productName, `${RELEASE.productName} Extension/SafariWebExtensionHandler.swift`)),
+  );
   const pairs = [];
   for (const entry of sourceExtensionInventory.filter(({ type }) => type === "file")) {
-    pairs.push([
-      join(sourceExtensionRoot, entry.path),
-      join(extensionResources, entry.path),
-    ]);
+    pairs.push({
+      source: join(sourceExtensionRoot, entry.path),
+      generated: join(extensionResources, entry.path),
+      sourceIdentity: entry,
+      generatedIdentity: generatedEntries.get(
+        join(RELEASE.productName, `${RELEASE.productName} Extension/Resources`, entry.path),
+      ),
+    });
   }
   for (const [source, output] of [
     ["ViewController.swift", "ViewController.swift"],
@@ -504,7 +710,14 @@ export function checkGeneratedReadiness({
     ["Style.css", "Resources/Style.css"],
     ["Script.js", "Resources/Script.js"],
   ]) {
-    pairs.push([join(repositoryRoot, "native/host", source), join(appTarget, output)]);
+    pairs.push({
+      source: join(sourceHostRoot, source),
+      generated: join(appTarget, output),
+      sourceIdentity: sourceHostInventory.find((entry) => entry.path === source),
+      generatedIdentity: generatedEntries.get(
+        join(RELEASE.productName, RELEASE.productName, output),
+      ),
+    });
   }
   compareFiles(repositoryRoot, pairs);
 
@@ -519,12 +732,19 @@ export function checkGeneratedReadiness({
     container,
     `${RELEASE.productName}.xcodeproj/project.pbxproj`,
   );
-  const projectSource = safeFile(
+  const projectRelative = join(
+    RELEASE.productName,
+    `${RELEASE.productName}.xcodeproj/project.pbxproj`,
+  );
+  const appInfoRelative = join(RELEASE.productName, RELEASE.productName, "Info.plist");
+  const projectSource = validateGeneratedProfile(
     repositoryRoot,
     projectPath,
-    "generated",
-    "project_settings",
-  ).contents.toString("utf8");
+    generatedEntries.get(projectRelative),
+    join(appTarget, "Info.plist"),
+    generatedEntries.get(appInfoRelative),
+  );
+  validateGeneratedProfileFiles(repositoryRoot, generated.path, generatedEntries);
   let projectReport;
   try {
     projectReport = validatePreparedProjectSettings(projectSource);

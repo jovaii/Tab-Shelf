@@ -2,12 +2,16 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   lstatSync,
-  readFileSync,
   readdirSync,
   realpathSync,
 } from "node:fs";
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
+
+import {
+  readVerifiedRepositoryFile,
+  resolveVerifiedRepositoryPath,
+} from "./prepare-macos-project.mjs";
 
 const DEPENDENCY_DIRECTORIES = Object.freeze([
   "node_modules",
@@ -63,38 +67,26 @@ function assertRealFile(path, label) {
 }
 
 function resolveContainedFile(root, path) {
-  const absoluteRoot = assertRealDirectory(root, "Audit root");
-  const absolute = resolve(absoluteRoot, path);
-  const difference = relative(absoluteRoot, absolute);
-  if (
-    difference === ".." ||
-    difference.startsWith(`..${sep}`) ||
-    isAbsolute(difference)
-  ) {
-    throw new Error("Audit path escapes its root");
+  return resolveVerifiedRepositoryPath({
+    root,
+    candidate: path,
+    label: "audit input",
+    type: "file",
+  }).path;
+}
+
+function readAuditFile({ root, path, expectedIdentity, auditHooks }) {
+  try {
+    return readVerifiedRepositoryFile({
+      root,
+      candidate: path,
+      label: "audit file",
+      expectedIdentity,
+      afterInspect: () => auditHooks?.afterFileInspect?.({ path }),
+    }).contents;
+  } catch (error) {
+    throw new Error("Audit file changed during validation", { cause: error });
   }
-  let current = absoluteRoot;
-  for (const component of difference.split(sep).filter(Boolean)) {
-    current = resolve(current, component);
-    const componentStatus = lstatSync(current);
-    if (componentStatus.isSymbolicLink()) {
-      throw new Error("Audit inputs must not cross symbolic links");
-    }
-  }
-  const stat = lstatSync(current);
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new Error("Audit inputs must be regular files");
-  }
-  const resolved = realpathSync(current);
-  const resolvedDifference = relative(absoluteRoot, resolved);
-  if (
-    resolvedDifference === ".." ||
-    resolvedDifference.startsWith(`..${sep}`) ||
-    isAbsolute(resolvedDifference)
-  ) {
-    throw new Error("Audit path escapes its root");
-  }
-  return resolved;
 }
 
 function runGit(root, args, encoding = "buffer") {
@@ -118,7 +110,7 @@ export function listTrackedFiles(root) {
         resolveContainedFile(root, path);
         return true;
       } catch (error) {
-        if (isMissing(error)) return false;
+        if (isMissing(error) || isMissing(error?.cause)) return false;
         throw error;
       }
     })
@@ -142,16 +134,41 @@ function isExcluded(path, exclusions) {
   return exclusions.some((excluded) => path === excluded || path.startsWith(`${excluded}/`));
 }
 
-export function inventoryTree({ root, excludedRoots = [] }) {
+function sameInventoryIdentity(left, right) {
+  return (
+    left.isDirectory() &&
+    !left.isSymbolicLink() &&
+    right.isDirectory() &&
+    !right.isSymbolicLink() &&
+    left.dev === right.dev &&
+    left.ino === right.ino
+  );
+}
+
+export function inventoryTree({ root, excludedRoots = [], auditHooks } = {}) {
   const treeRoot = assertRealDirectory(root, "Inventory root");
   const exclusions = [...new Set(excludedRoots.map(normalizeInventoryPath))].sort();
   const inventory = [];
 
-  function walk(directory) {
+  function walk(directory, path, inspected) {
     let entries;
     try {
+      const before = lstatSync(directory);
+      if (!sameInventoryIdentity(inspected, before)) {
+        throw new Error("Inventory tree changed during validation");
+      }
+      auditHooks?.beforeDirectoryRead?.({ path });
+      const ready = lstatSync(directory);
+      if (!sameInventoryIdentity(inspected, ready)) {
+        throw new Error("Inventory tree changed during validation");
+      }
       entries = readdirSync(directory, { withFileTypes: true });
+      const after = lstatSync(directory);
+      if (!sameInventoryIdentity(inspected, after)) {
+        throw new Error("Inventory tree changed during validation");
+      }
     } catch (error) {
+      if (error?.message === "Inventory tree changed during validation") throw error;
       throw new Error("Inventory tree is unavailable", { cause: error });
     }
     for (const entry of entries) {
@@ -178,12 +195,22 @@ export function inventoryTree({ root, excludedRoots = [] }) {
         inode: status.ino,
         links: status.nlink,
         size: status.size,
+        mode: status.mode & 0o777,
       }));
-      if (type === "directory") walk(absolute);
+      if (type === "directory") walk(absolute, path, status);
+    }
+    try {
+      const afterRecursion = lstatSync(directory);
+      if (!sameInventoryIdentity(inspected, afterRecursion)) {
+        throw new Error("Inventory tree changed during validation");
+      }
+    } catch (error) {
+      if (error?.message === "Inventory tree changed during validation") throw error;
+      throw new Error("Inventory tree is unavailable", { cause: error });
     }
   }
 
-  walk(treeRoot);
+  walk(treeRoot, "", lstatSync(treeRoot));
   return Object.freeze(inventory.sort((left, right) => left.path.localeCompare(right.path, "en")));
 }
 
@@ -261,23 +288,33 @@ function scanText(path, content, normalizedTerms) {
   return findings;
 }
 
-export function scanTerms({ root, files, terms }) {
+export function scanTerms({ root, files, terms, identities, auditHooks }) {
   const normalizedTerms = [...new Set(terms.map((term) => term
     .normalize("NFKC")
     .toLocaleLowerCase("en-US")))]
     .filter(Boolean);
   const findings = [];
   for (const path of files) {
-    const absolute = resolveContainedFile(root, path);
-    findings.push(...scanText(path, readFileSync(absolute).toString("utf8"), normalizedTerms));
+    const content = readAuditFile({
+      root,
+      path,
+      expectedIdentity: identities?.get(path),
+      auditHooks,
+    });
+    findings.push(...scanText(path, content.toString("utf8"), normalizedTerms));
   }
   return findings;
 }
 
-export function hashFiles({ root, files }) {
+export function hashFiles({ root, files, identities, auditHooks }) {
   const hashes = new Map();
   for (const path of files) {
-    const digest = sha256(readFileSync(resolveContainedFile(root, path)));
+    const digest = sha256(readAuditFile({
+      root,
+      path,
+      expectedIdentity: identities?.get(path),
+      auditHooks,
+    }));
     const paths = hashes.get(digest) ?? [];
     paths.push(path);
     hashes.set(digest, paths);
@@ -290,11 +327,12 @@ export function compareWholeFileHashes({ candidateRoot, comparisonRoot }) {
     root: candidateRoot,
     files: listTrackedFiles(candidateRoot),
   });
+  const comparisonInventory = inventoryTree({ root: comparisonRoot, excludedRoots: [".git"] });
+  const comparisonFiles = comparisonInventory.filter(({ type }) => type === "file");
   const comparison = hashFiles({
     root: comparisonRoot,
-    files: inventoryTree({ root: comparisonRoot, excludedRoots: [".git"] })
-      .filter(({ type }) => type === "file")
-      .map(({ path }) => path),
+    files: comparisonFiles.map(({ path }) => path),
+    identities: new Map(comparisonFiles.map((entry) => [entry.path, entry])),
   });
   const matches = [];
   for (const [digest, candidatePaths] of candidate) {
@@ -320,7 +358,16 @@ export function assertNoDependencyTrees(root) {
   }
   const packageFile = resolve(root, "package.json");
   try {
-    const manifest = JSON.parse(readFileSync(packageFile, "utf8"));
+    lstatSync(packageFile);
+  } catch (error) {
+    if (isMissing(error)) return;
+    throw error;
+  }
+  try {
+    const manifest = JSON.parse(readAuditFile({
+      root,
+      path: "package.json",
+    }).toString("utf8"));
     for (const field of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
       if (Object.keys(manifest[field] ?? {}).length > 0) {
         throw new Error(`Package dependencies are not allowed: ${field}`);
@@ -333,10 +380,18 @@ export function assertNoDependencyTrees(root) {
 
 function readTerms(path) {
   if (!path) return [];
-  return readFileSync(assertRealFile(path, "Prohibited terms file"), "utf8")
-    .split(/\r?\n/u)
-    .map((term) => term.trim())
-    .filter(Boolean);
+  const absolute = assertRealFile(path, "Prohibited terms file");
+  try {
+    return readAuditFile({
+      root: resolve(absolute, ".."),
+      path: basename(absolute),
+    }).toString("utf8")
+      .split(/\r?\n/u)
+      .map((term) => term.trim())
+      .filter(Boolean);
+  } catch (error) {
+    throw new Error("Prohibited terms file is unavailable", { cause: error });
+  }
 }
 
 function scanCommitMetadata(root, terms) {
@@ -367,10 +422,13 @@ export function runAudit({
     if (productInventory.some(({ type }) => type === "symlink" || type === "other")) {
       throw new Error("Audit product tree contains unsupported entries");
     }
-    const productFiles = productInventory
-      .filter(({ type }) => type === "file")
-      .map(({ path }) => path);
-    findings.push(...scanTerms({ root: absoluteProductRoot, files: productFiles, terms }));
+    const productFiles = productInventory.filter(({ type }) => type === "file");
+    findings.push(...scanTerms({
+      root: absoluteProductRoot,
+      files: productFiles.map(({ path }) => path),
+      identities: new Map(productFiles.map((entry) => [entry.path, entry])),
+      terms,
+    }));
   }
 
   const equalFiles = comparisonRoot

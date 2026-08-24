@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   cpSync,
   linkSync,
   mkdirSync,
@@ -32,34 +33,13 @@ const IDS = Object.freeze({
   extensionDebug: "CC0000000000000000000003",
   extensionRelease: "CC0000000000000000000004",
 });
-const APPLE_APP_FILES = Object.freeze([
-  "AppDelegate.swift",
-  "Assets.xcassets/AccentColor.colorset/Contents.json",
-  "Assets.xcassets/AppIcon.appiconset/Contents.json",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-128@1x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-128@2x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-16@1x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-16@2x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-256@1x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-256@2x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-32@1x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-32@2x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-512@1x.png",
-  "Assets.xcassets/AppIcon.appiconset/mac-icon-512@2x.png",
-  "Assets.xcassets/Contents.json",
-  "Assets.xcassets/LargeIcon.imageset/Contents.json",
-  "Base.lproj/Main.storyboard",
-  "Info.plist",
-  "Resources/Icon.png",
-]);
-const SAFE_HANDLER = `import SafariServices
-
-class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
-    func beginRequest(with context: NSExtensionContext) {
-        context.completeRequest(returningItems: [], completionHandler: nil)
-    }
-}
-`;
+const SAFE_HANDLER = readFileSync(
+  join(
+    SOURCE_ROOT,
+    "native/release/xcode-26.6/Tab Shelf/Tab Shelf Extension/SafariWebExtensionHandler.swift",
+  ),
+  "utf8",
+);
 
 function write(path, contents) {
   mkdirSync(dirname(path), { recursive: true });
@@ -83,6 +63,7 @@ function makeSourceFixture(t) {
     "package.json",
     "extension",
     "native/host",
+    "native/release",
     "LICENSE",
     "NOTICE",
     "THIRD_PARTY_NOTICES.md",
@@ -97,6 +78,7 @@ function addReadinessScripts(root) {
   mkdirSync(join(root, "scripts"), { recursive: true });
   for (const file of [
     "audit-repository.mjs",
+    "app-store-release-profile.mjs",
     "check-app-store-readiness.mjs",
     "prepare-macos-project.mjs",
     "release-config.mjs",
@@ -149,6 +131,11 @@ function generatedProject(overrides = {}) {
   };
   return `// !$*UTF8*$!
   {
+    objectVersion = 77;
+    attributes = {
+      LastSwiftUpdateCheck = 2660;
+      LastUpgradeCheck = 2660;
+    };
     objects = {
       ${IDS.appTarget} /* Tab Shelf */ = {
         isa = PBXNativeTarget;
@@ -183,22 +170,23 @@ function generatedProject(overrides = {}) {
 function addGeneratedFixture(root, projectSource = generatedProject()) {
   const generatedRoot = join(root, "native/generated");
   const container = join(generatedRoot, PRODUCT);
-  write(join(container, `${PRODUCT}.xcodeproj/project.pbxproj`), projectSource);
-  write(
-    join(container, `${PRODUCT}.xcodeproj/project.xcworkspace/contents.xcworkspacedata`),
-    "<Workspace></Workspace>\n",
+  cpSync(
+    join(root, "native/release/xcode-26.6", PRODUCT),
+    container,
+    { recursive: true },
   );
+  write(join(container, `${PRODUCT}.xcodeproj/project.pbxproj`), projectSource);
   mkdirSync(
     join(container, `${PRODUCT}.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration`),
     { recursive: true },
   );
-  for (const path of APPLE_APP_FILES) {
-    write(join(container, PRODUCT, path), `synthetic Apple resource ${path}\n`);
+  for (const path of [
+    "xcshareddata",
+    "xcshareddata/swiftpm",
+    "xcshareddata/swiftpm/configuration",
+  ]) {
+    chmodSync(join(container, `${PRODUCT}.xcodeproj/project.xcworkspace`, path), 0o777);
   }
-  write(
-    join(container, PRODUCT, "AppDelegate.swift"),
-    "import Cocoa\nfinal class AppDelegate: NSObject {}\n",
-  );
   cpSync(
     join(root, "native/host/Base.lproj/Main.html"),
     join(container, PRODUCT, "Resources/Base.lproj/Main.html"),
@@ -218,8 +206,6 @@ function addGeneratedFixture(root, projectSource = generatedProject()) {
   cpSync(join(root, "extension"), join(container, `${PRODUCT} Extension/Resources`), {
     recursive: true,
   });
-  write(join(container, `${PRODUCT} Extension/Info.plist`), "<plist></plist>\n");
-  write(join(container, `${PRODUCT} Extension/SafariWebExtensionHandler.swift`), SAFE_HANDLER);
   return generatedRoot;
 }
 
@@ -381,6 +367,26 @@ test("source readiness rejects runtime network APIs", (t) => {
   assert.throws(() => checkSourceReadiness({ root }), /runtime network APIs/u);
 });
 
+test("source readiness rejects indirect JavaScript networking", async (t) => {
+  await t.test("module", (t) => {
+    const root = makeSourceFixture(t);
+    writeFileSync(
+      join(root, "extension/network.mjs"),
+      'export const request = () => globalThis["fetch"]("https://api.example.invalid/");\n',
+    );
+    assert.throws(() => checkSourceReadiness({ root }), /source_network_api_found/u);
+  });
+  await t.test("inline HTML script", (t) => {
+    const root = makeSourceFixture(t);
+    replace(
+      join(root, "extension/popup.html"),
+      "</body>",
+      '<script>globalThis["fetch"]("/service")</script></body>',
+    );
+    assert.throws(() => checkSourceReadiness({ root }), /source_network_api_found/u);
+  });
+});
+
 test("source readiness rejects native Swift networking", (t) => {
   const root = makeSourceFixture(t);
   writeFileSync(
@@ -388,6 +394,48 @@ test("source readiness rejects native Swift networking", (t) => {
     "import Foundation\nlet session = URLSession.shared\n",
   );
   assert.throws(() => checkSourceReadiness({ root }), /source_network_api_found/u);
+});
+
+test("source readiness rejects equivalent native networking entry points", async (t) => {
+  for (const [name, source] of [
+    ["host streams", "import Foundation\nStream.getStreamsToHost(withName: \"example.invalid\", port: 443, inputStream: nil, outputStream: nil)\n"],
+    ["POSIX sockets", "import Darwin\nlet descriptor = socket(AF_INET, SOCK_STREAM, 0)\n"],
+    ["POSIX connect", "import Darwin\n_ = connect(0, nil, 0)\n"],
+    ["POSIX send", "import Darwin\n_ = send(0, nil, 0, 0)\n"],
+    ["POSIX receive", "import Darwin\n_ = recv(0, nil, 0, 0)\n"],
+    ["CF HTTP streams", "import CoreFoundation\nlet stream = CFReadStreamCreateForHTTPRequest(nil, message)\n"],
+  ]) {
+    await t.test(name, (t) => {
+      const root = makeSourceFixture(t);
+      writeFileSync(join(root, "native/host/Transport.swift"), source);
+      assert.throws(() => checkSourceReadiness({ root }), /source_network_api_found/u);
+    });
+  }
+});
+
+test("source readiness pins every shipping executable source", (t) => {
+  const root = makeSourceFixture(t);
+  writeFileSync(
+    join(root, "extension/ui/dom.mjs"),
+    `${readFileSync(join(root, "extension/ui/dom.mjs"), "utf8")}\nexport const releaseDrift = true;\n`,
+  );
+  assert.throws(
+    () => checkSourceReadiness({ root }),
+    /source_release_content_invalid reason=changed count=1/u,
+  );
+});
+
+test("source readiness pins shipping executable modes", async (t) => {
+  for (const path of ["extension/background.js", "native/host/Script.js"]) {
+    await t.test(path, (t) => {
+      const root = makeSourceFixture(t);
+      chmodSync(join(root, path), 0o755);
+      assert.throws(
+        () => checkSourceReadiness({ root }),
+        /source_release_content_invalid reason=mode count=1/u,
+      );
+    });
+  }
 });
 
 test("source readiness rejects an ancestor symlink without disclosing its target", (t) => {
@@ -492,6 +540,35 @@ test("generated readiness validates exact target configurations", (t) => {
     extensionBundleIdentifier: "com.jovaii.tabshelf.extension",
     configurations: 4,
     networkEntitlement: "off",
+  });
+});
+
+test("generated readiness rejects unsupported Xcode and converter profiles", async (t) => {
+  await t.test("Xcode profile", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    replace(
+      join(generatedRoot, PRODUCT, `${PRODUCT}.xcodeproj/project.pbxproj`),
+      "LastUpgradeCheck = 2660;",
+      "LastUpgradeCheck = 2670;",
+    );
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_profile_unsupported/u,
+    );
+  });
+  await t.test("converter profile", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    replace(
+      join(generatedRoot, PRODUCT, PRODUCT, "Info.plist"),
+      "26.6",
+      "26.7",
+    );
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_profile_unsupported/u,
+    );
   });
 });
 
@@ -726,6 +803,80 @@ test("generated readiness validates native Swift and the extension handler contr
       /generated_handler_invalid/u,
     );
   });
+  await t.test("altered AppDelegate", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    writeFileSync(
+      join(generatedRoot, PRODUCT, PRODUCT, "AppDelegate.swift"),
+      "import Cocoa\n@main final class AppDelegate: NSObject, NSApplicationDelegate {}\n",
+    );
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_release_content_invalid reason=changed count=1/u,
+    );
+  });
+  await t.test("comment-only handler anchors and extra code", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    const handler = join(
+      generatedRoot,
+      PRODUCT,
+      `${PRODUCT} Extension/SafariWebExtensionHandler.swift`,
+    );
+    writeFileSync(handler, `import SafariServices
+// SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling
+// func beginRequest(with context: NSExtensionContext)
+// context.completeRequest(
+final class UnapprovedHandler: NSObject {}
+`);
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_release_content_invalid reason=changed count=1/u,
+    );
+  });
+});
+
+test("generated readiness pins Apple metadata and artwork bytes", async (t) => {
+  for (const [name, relativePath] of [
+    ["App Info plist", `${PRODUCT}/Info.plist`],
+    ["extension Info plist", `${PRODUCT} Extension/Info.plist`],
+    ["asset JSON", `${PRODUCT}/Assets.xcassets/Contents.json`],
+    ["storyboard", `${PRODUCT}/Base.lproj/Main.storyboard`],
+    ["workspace", `${PRODUCT}.xcodeproj/project.xcworkspace/contents.xcworkspacedata`],
+    ["App icon", `${PRODUCT}/Assets.xcassets/AppIcon.appiconset/mac-icon-32@1x.png`],
+  ]) {
+    await t.test(name, (t) => {
+      const root = makeSourceFixture(t);
+      const generatedRoot = addGeneratedFixture(root);
+      const path = join(generatedRoot, PRODUCT, relativePath);
+      const contents = readFileSync(path);
+      contents[contents.length - 1] ^= 1;
+      writeFileSync(path, contents);
+      assert.throws(
+        () => checkGeneratedReadiness({ root, generatedRoot }),
+        /generated_profile_content_invalid reason=changed count=1/u,
+      );
+    });
+  }
+});
+
+test("generated readiness compares approved file modes", async (t) => {
+  for (const [relativePath, changedMode] of [
+    [`${PRODUCT} Extension/Resources/background.js`, 0o755],
+    [`${PRODUCT}/Resources/Script.js`, 0o755],
+    [`${PRODUCT}/AppDelegate.swift`, 0o755],
+    [`${PRODUCT}.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration`, 0o755],
+  ]) {
+    await t.test(relativePath, (t) => {
+      const root = makeSourceFixture(t);
+      const generatedRoot = addGeneratedFixture(root);
+      chmodSync(join(generatedRoot, PRODUCT, relativePath), changedMode);
+      assert.throws(
+        () => checkGeneratedReadiness({ root, generatedRoot }),
+        /generated_resource_tree_invalid reason=mode count=1/u,
+      );
+    });
+  }
 });
 
 test("generated readiness rejects unexpected native product source", (t) => {

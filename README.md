@@ -24,6 +24,8 @@ Card accents sample only favicon pixels already loaded by Safari. If an image ca
 
 The source uses no third-party runtime packages, remote fonts, stock images, or icon packs. Artwork in `extension/icons/` is generated locally from `scripts/generate-icons.swift`.
 
+App Store generated-project readiness currently supports only Xcode 26.6 and Safari Web Extension Converter 26.6. The reviewed templates, metadata, and artwork for that profile live in `native/release/xcode-26.6`; a different generator profile fails closed until it is explicitly reviewed and pinned.
+
 ## Requirements
 
 - A current macOS release with Safari Web Extension support.

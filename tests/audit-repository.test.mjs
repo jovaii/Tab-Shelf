@@ -3,6 +3,7 @@ import {
   mkdtempSync,
   mkdirSync,
   rmSync,
+  renameSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
@@ -15,6 +16,7 @@ import {
   assertNoDependencyTrees,
   assertNoSensitiveRepositoryFiles,
   compareWholeFileHashes,
+  inventoryTree,
   listTrackedFiles,
   scanTerms,
 } from "../scripts/audit-repository.mjs";
@@ -212,5 +214,74 @@ test("sensitive inventory does not traverse Git or ignored build output", () => 
     writeFileSync(join(root, ".git/synthetic.p12"), "Git internals are outside the scan\n");
 
     assert.doesNotThrow(() => assertNoSensitiveRepositoryFiles(root));
+  });
+});
+
+test("inventory rejects a directory swapped to an outside symlink", () => {
+  withTemporaryDirectory((root) => {
+    const directory = join(root, "candidate");
+    const moved = join(root, "candidate-original");
+    const outside = mkdtempSync(join(tmpdir(), "tab-shelf-audit-outside-"));
+    try {
+      mkdirSync(directory);
+      writeFileSync(join(directory, "inside.txt"), "inside\n");
+      writeFileSync(join(outside, "outside-marker.txt"), "outside marker\n");
+      assert.throws(
+        () => inventoryTree({
+          root,
+          excludedRoots: [],
+          auditHooks: {
+            beforeDirectoryRead({ path }) {
+              if (path !== "candidate") return;
+              renameSync(directory, moved);
+              symlinkSync(outside, directory, "dir");
+            },
+          },
+        }),
+        (error) => {
+          assert.match(error.message, /Inventory tree changed during validation/u);
+          assert.equal(error.message.includes(outside), false);
+          assert.equal(error.message.includes("outside-marker"), false);
+          return true;
+        },
+      );
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+});
+
+test("audit read rejects a file swapped to an outside symlink", () => {
+  withTemporaryDirectory((root) => {
+    const candidate = join(root, "candidate.txt");
+    const moved = join(root, "candidate-original.txt");
+    const outsideRoot = mkdtempSync(join(tmpdir(), "tab-shelf-audit-read-outside-"));
+    const outside = join(outsideRoot, "outside-marker.txt");
+    try {
+      writeFileSync(candidate, "inside\n");
+      writeFileSync(outside, "outside marker\n");
+      assert.throws(
+        () => scanTerms({
+          root,
+          files: ["candidate.txt"],
+          terms: ["outside marker"],
+          auditHooks: {
+            afterFileInspect({ path }) {
+              if (path !== "candidate.txt") return;
+              renameSync(candidate, moved);
+              symlinkSync(outside, candidate);
+            },
+          },
+        }),
+        (error) => {
+          assert.match(error.message, /Audit file changed during validation/u);
+          assert.equal(error.message.includes(outside), false);
+          assert.equal(error.message.includes("outside-marker"), false);
+          return true;
+        },
+      );
+    } finally {
+      rmSync(outsideRoot, { recursive: true, force: true });
+    }
   });
 });
