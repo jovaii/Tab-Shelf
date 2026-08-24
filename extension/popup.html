@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Tab Shelf</title>
+    <link rel="stylesheet" href="shared/tokens.css">
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="popover" aria-labelledby="popover-title">
+      <header class="popover__header">
+        <span class="brand-mark" aria-hidden="true">
+          <i></i><i></i><i></i><b></b>
+        </span>
+        <div>
+          <p class="product-kicker">Safari workspace</p>
+          <h1 id="popover-title">Tab Shelf</h1>
+        </div>
+      </header>
+
+      <section class="tab-count" aria-label="Open Safari web tabs">
+        <strong id="web-tab-count">—</strong>
+        <span>Open web tabs</span>
+      </section>
+
+      <p id="popup-status" class="popup-status" role="status" aria-live="polite"></p>
+
+      <div class="popover__actions">
+        <button id="open-shelf" class="primary-action" type="button">Open Tab Shelf</button>
+        <button id="open-settings" class="quiet-action" type="button">Theme settings</button>
+      </div>
+      <p class="privacy-note">Private to Safari on this Mac.</p>
+    </main>
+    <script type="module" src="popup.mjs"></script>
+  </body>
+</html>
