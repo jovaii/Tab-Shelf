@@ -31,7 +31,9 @@ test("archive path signs for the enrolled team but never uploads", () => {
   assert.match(script, /XCODE_APP="\/Applications\/Xcode\.app"/u);
   assert.match(script, /DEVELOPER_DIR_PATH="\/Applications\/Xcode\.app\/Contents\/Developer"/u);
   assert.match(script, /unset ARCHIVE_TEAM_ID/u);
+  assert.match(script, /unset CDPATH/u);
   assert.match(script, /must not be a symbolic link/u);
+  assert.ok(script.indexOf("unset CDPATH") < script.indexOf("SCRIPT_DIRECTORY_INPUT"));
   assert.ok(script.indexOf("unset ARCHIVE_TEAM_ID") < script.indexOf('ARCHIVE_TEAM_ID="${APPLE_TEAM_ID:-}"'));
   const lowerTeamIdUnset = workflow.indexOf("unset archive_team_id");
   const lowerTeamIdAssignment = workflow.indexOf('local archive_team_id="$2"');
@@ -334,6 +336,40 @@ test("public archive entrypoint accepts a relative invocation before validating 
     result.stderr,
     "Tab Shelf App Store archive stopped: APPLE_TEAM_ID must be set to a valid enrolled team identifier.\n",
   );
+  assert.deepEqual(calls(fixture), []);
+});
+
+test("public relative entrypoint clears attacker CDPATH before Team-ID validation", (t) => {
+  const fixture = makeArchiveFixture(t);
+  const attackerRoot = realpathSync(mkdtempSync(join(tmpdir(), "tab-shelf-cdpath-attacker-")));
+  t.after(() => rmSync(attackerRoot, { recursive: true, force: true }));
+  const marker = join(attackerRoot, "helper-reached");
+  write(
+    join(attackerRoot, "scripts/archive-app-store-workflow.sh"),
+    `: > "${marker}"\nexit 73\n`,
+    0o755,
+  );
+
+  const result = spawnSync("/bin/bash", ["scripts/archive-app-store.sh"], {
+    cwd: fixture.root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: fixture.bin,
+      CDPATH: attackerRoot,
+      APPLE_TEAM_ID: "not-a-team",
+      ARCHIVE_TEAM_ID: "inherited-team-id",
+      archive_team_id: "inherited-lowercase-team-id",
+      TAB_SHELF_TEST_LOG: fixture.log,
+    },
+  });
+
+  assert.equal(result.status, 1);
+  assert.equal(
+    result.stderr,
+    "Tab Shelf App Store archive stopped: APPLE_TEAM_ID must be set to a valid enrolled team identifier.\n",
+  );
+  assert.throws(() => lstatSync(marker), { code: "ENOENT" });
   assert.deepEqual(calls(fixture), []);
 });
 

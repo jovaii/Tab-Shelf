@@ -3,6 +3,7 @@
 set -euo pipefail
 umask 077
 PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/libexec"
+unset CDPATH
 
 fail() {
   printf 'Tab Shelf App Store archive stopped: %s\n' "$1" >&2
