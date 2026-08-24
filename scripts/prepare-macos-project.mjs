@@ -478,54 +478,65 @@ function prepareProjectSettings(source) {
   return prepared;
 }
 
-function requirePreparedSetting(dictionary, key, expected, label) {
+function preparedSettingError(entry, key, expected, actual) {
+  const error = new Error(
+    `${entry.target} ${entry.configuration} ${key}: expected ${expected}, found ${actual}`,
+  );
+  error.validation = Object.freeze({
+    target: entry.target,
+    configuration: entry.configuration,
+    field: key,
+  });
+  return error;
+}
+
+function requirePreparedSetting(entry, key, expected) {
+  const dictionary = entry.contents;
   const values = directAssignments({ source: dictionary }, key);
   if (values.length !== 1 || values[0] !== expected) {
     const actual = values.length === 1 ? values[0] : `count ${values.length}`;
-    throw new Error(`${label} ${key}: expected ${expected}, found ${actual}`);
+    throw preparedSettingError(entry, key, expected, actual);
   }
 }
 
 export function validatePreparedProjectSettings(source) {
   const configurations = projectConfigurations(source);
   for (const entry of configurations) {
-    const label = `${entry.target} ${entry.configuration}`;
     requirePreparedSetting(
-      entry.contents,
+      entry,
       "CURRENT_PROJECT_VERSION",
       RELEASE.build,
-      label,
     );
-    requirePreparedSetting(entry.contents, "ENABLE_APP_SANDBOX", "YES", label);
-    requirePreparedSetting(entry.contents, "MARKETING_VERSION", RELEASE.version, label);
+    requirePreparedSetting(entry, "ENABLE_APP_SANDBOX", "YES");
+    requirePreparedSetting(entry, "MARKETING_VERSION", RELEASE.version);
 
     if (entry.target === RELEASE.productName) {
       requirePreparedSetting(
-        entry.contents,
+        entry,
         "PRODUCT_BUNDLE_IDENTIFIER",
         RELEASE.appBundleIdentifier,
-        label,
       );
       requirePreparedSetting(
-        entry.contents,
+        entry,
         "ENABLE_OUTGOING_NETWORK_CONNECTIONS",
         "NO",
-        label,
       );
     } else {
       requirePreparedSetting(
-        entry.contents,
+        entry,
         "PRODUCT_BUNDLE_IDENTIFIER",
         RELEASE.extensionBundleIdentifier,
-        label,
       );
       const networkValues = directAssignments(
         { source: entry.contents },
         "ENABLE_OUTGOING_NETWORK_CONNECTIONS",
       );
       if (networkValues.length !== 0) {
-        throw new Error(
-          `${label} ENABLE_OUTGOING_NETWORK_CONNECTIONS: expected absent, found count ${networkValues.length}`,
+        throw preparedSettingError(
+          entry,
+          "ENABLE_OUTGOING_NETWORK_CONNECTIONS",
+          "absent",
+          `count ${networkValues.length}`,
         );
       }
     }
@@ -617,6 +628,62 @@ function revalidateHandle(handle) {
   }
   if (current.nlink !== 1) {
     throw new Error(`${handle.label} must not be a hard link: found ${current.nlink} links`);
+  }
+}
+
+export function resolveVerifiedRepositoryPath({
+  root = process.cwd(),
+  candidate,
+  label = "repository path",
+  type,
+}) {
+  if (type !== "file" && type !== "directory") {
+    throw new Error(`${label} type must be file or directory`);
+  }
+  const rootPath = resolve(root);
+  requireType(rootPath, "repository root", "directory");
+  const repositoryRoot = realpathSync(rootPath);
+  const candidatePath = isAbsolute(candidate)
+    ? resolve(candidate)
+    : resolve(rootPath, candidate);
+  const difference = relative(rootPath, candidatePath);
+  if (
+    difference === ".." ||
+    difference.startsWith(`..${sep}`) ||
+    isAbsolute(difference)
+  ) {
+    throw new Error(`${label} must be inside repository root`);
+  }
+  const canonicalCandidate = resolve(repositoryRoot, difference);
+  return Object.freeze({
+    root: repositoryRoot,
+    path: resolveExistingInside(
+      repositoryRoot,
+      canonicalCandidate,
+      label,
+      type,
+    ),
+  });
+}
+
+export function readVerifiedRepositoryFile({
+  root = process.cwd(),
+  candidate,
+  label = "repository file",
+}) {
+  const resolved = resolveVerifiedRepositoryPath({
+    root,
+    candidate,
+    label,
+    type: "file",
+  });
+  const handle = openVerifiedFile(resolved.path, label);
+  try {
+    const contents = fs.readFileSync(handle.descriptor);
+    revalidateHandle(handle);
+    return Object.freeze({ ...resolved, contents });
+  } finally {
+    fs.closeSync(handle.descriptor);
   }
 }
 

@@ -4,8 +4,9 @@ import {
   lstatSync,
   readFileSync,
   readdirSync,
+  realpathSync,
 } from "node:fs";
-import { basename, relative, resolve, sep } from "node:path";
+import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const DEPENDENCY_DIRECTORIES = Object.freeze([
@@ -23,19 +24,19 @@ const SENSITIVE_EXTENSIONS = new Set([
   ".xcarchive",
 ]);
 const SENSITIVE_FILENAME_PATTERNS = Object.freeze([
-  /^\.env(?:\.[a-z0-9_-]+)?$/iu,
-  /^AuthKey_[A-Z0-9]+\.p8$/u,
-  /^(?:app[-_ ]?store[-_ ]?connect|asc)[-_ ](?:api[-_ ]?key|credentials?)\.(?:json|p8)$/iu,
-  /^ExportOptions\.plist$/u,
+  /^\.env(?:\.[a-z0-9_-]+)?$/u,
+  /^authkey_[a-z0-9]+\.p8$/u,
+  /^(?:app[-_ ]?store[-_ ]?connect|asc)[-_ ](?:api[-_ ]?key|credentials?)\.(?:json|p8)$/u,
+  /^exportoptions\.plist$/u,
 ]);
-const INVENTORY_SKIP_DIRECTORIES = new Set([
+const REPOSITORY_INVENTORY_EXCLUSIONS = Object.freeze([
   ".git",
   ".superpowers",
   ".worktrees",
-  "artifacts",
+  "artifacts/qa",
   "build",
   "dist",
-  "generated",
+  "native/generated",
   ...DEPENDENCY_DIRECTORIES,
 ]);
 
@@ -49,7 +50,7 @@ function assertRealDirectory(path, label) {
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     throw new Error(`${label} must be a real directory`);
   }
-  return absolute;
+  return realpathSync(absolute);
 }
 
 function assertRealFile(path, label) {
@@ -62,16 +63,38 @@ function assertRealFile(path, label) {
 }
 
 function resolveContainedFile(root, path) {
-  const absoluteRoot = resolve(root);
+  const absoluteRoot = assertRealDirectory(root, "Audit root");
   const absolute = resolve(absoluteRoot, path);
-  if (absolute !== absoluteRoot && !absolute.startsWith(`${absoluteRoot}${sep}`)) {
+  const difference = relative(absoluteRoot, absolute);
+  if (
+    difference === ".." ||
+    difference.startsWith(`..${sep}`) ||
+    isAbsolute(difference)
+  ) {
     throw new Error("Audit path escapes its root");
   }
-  const stat = lstatSync(absolute);
+  let current = absoluteRoot;
+  for (const component of difference.split(sep).filter(Boolean)) {
+    current = resolve(current, component);
+    const componentStatus = lstatSync(current);
+    if (componentStatus.isSymbolicLink()) {
+      throw new Error("Audit inputs must not cross symbolic links");
+    }
+  }
+  const stat = lstatSync(current);
   if (!stat.isFile() || stat.isSymbolicLink()) {
     throw new Error("Audit inputs must be regular files");
   }
-  return absolute;
+  const resolved = realpathSync(current);
+  const resolvedDifference = relative(absoluteRoot, resolved);
+  if (
+    resolvedDifference === ".." ||
+    resolvedDifference.startsWith(`..${sep}`) ||
+    isAbsolute(resolvedDifference)
+  ) {
+    throw new Error("Audit path escapes its root");
+  }
+  return resolved;
 }
 
 function runGit(root, args, encoding = "buffer") {
@@ -102,47 +125,91 @@ export function listTrackedFiles(root) {
     .sort();
 }
 
-function walkBoundedInventory(
-  root,
-  directory,
-  output,
-  skipDirectories = INVENTORY_SKIP_DIRECTORIES,
-) {
-  let entries;
-  try {
-    entries = readdirSync(directory, { withFileTypes: true });
-  } catch (error) {
-    if (isMissing(error)) return;
-    throw error;
+function normalizeInventoryPath(path) {
+  const normalized = path.split(sep).join("/").replace(/^\.\//u, "").replace(/\/$/u, "");
+  if (
+    normalized.length === 0 ||
+    isAbsolute(normalized) ||
+    normalized === ".." ||
+    normalized.startsWith("../")
+  ) {
+    throw new Error("Inventory exclusion must be repository-relative");
   }
-  for (const entry of entries) {
-    const absolute = resolve(directory, entry.name);
-    const path = relative(root, absolute).split(sep).join("/");
-    if (entry.isSymbolicLink()) continue;
-    if (entry.isDirectory()) {
-      output.add(path);
-      if (!skipDirectories.has(entry.name)) {
-        walkBoundedInventory(root, absolute, output, skipDirectories);
-      }
-    } else if (entry.isFile()) {
-      output.add(path);
-    }
-  }
+  return normalized;
 }
 
-function sensitiveInventory(root) {
+function isExcluded(path, exclusions) {
+  return exclusions.some((excluded) => path === excluded || path.startsWith(`${excluded}/`));
+}
+
+export function inventoryTree({ root, excludedRoots = [] }) {
+  const treeRoot = assertRealDirectory(root, "Inventory root");
+  const exclusions = [...new Set(excludedRoots.map(normalizeInventoryPath))].sort();
+  const inventory = [];
+
+  function walk(directory) {
+    let entries;
+    try {
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch (error) {
+      throw new Error("Inventory tree is unavailable", { cause: error });
+    }
+    for (const entry of entries) {
+      const absolute = resolve(directory, entry.name);
+      const path = relative(treeRoot, absolute).split(sep).join("/");
+      if (isExcluded(path, exclusions)) continue;
+      let status;
+      try {
+        status = lstatSync(absolute);
+      } catch (error) {
+        throw new Error("Inventory entry is unavailable", { cause: error });
+      }
+      const type = status.isSymbolicLink()
+        ? "symlink"
+        : status.isDirectory()
+          ? "directory"
+          : status.isFile()
+            ? "file"
+            : "other";
+      inventory.push(Object.freeze({
+        path,
+        type,
+        device: status.dev,
+        inode: status.ino,
+        links: status.nlink,
+        size: status.size,
+      }));
+      if (type === "directory") walk(absolute);
+    }
+  }
+
+  walk(treeRoot);
+  return Object.freeze(inventory.sort((left, right) => left.path.localeCompare(right.path, "en")));
+}
+
+function repositorySensitiveInventory(root) {
   const repositoryRoot = assertRealDirectory(root, "Repository root");
-  const inventory = new Set(listTrackedFiles(repositoryRoot));
-  walkBoundedInventory(repositoryRoot, repositoryRoot, inventory);
+  const inventory = new Set(
+    inventoryTree({
+      root: repositoryRoot,
+      excludedRoots: REPOSITORY_INVENTORY_EXCLUSIONS,
+    }).map(({ path }) => path),
+  );
+  const gitPaths = runGit(
+    repositoryRoot,
+    ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+  ).toString("utf8").split("\0").filter(Boolean);
+  for (const path of gitPaths) inventory.add(path.split(sep).join("/"));
   return [...inventory].sort();
 }
 
 function isSensitiveName(name) {
   const lowerName = name.toLocaleLowerCase("en-US");
+  if (lowerName === ".env.example" || lowerName === ".env.sample") return false;
   if ([...SENSITIVE_EXTENSIONS].some((extension) => lowerName.endsWith(extension))) {
     return true;
   }
-  return SENSITIVE_FILENAME_PATTERNS.some((pattern) => pattern.test(name));
+  return SENSITIVE_FILENAME_PATTERNS.some((pattern) => pattern.test(lowerName));
 }
 
 function isSensitivePath(path) {
@@ -157,8 +224,14 @@ function sensitiveFindings(inventory) {
   return findings;
 }
 
+export function countSensitiveArtifacts(inventory) {
+  return sensitiveFindings(
+    inventory.map((entry) => typeof entry === "string" ? entry : entry.path),
+  ).length;
+}
+
 export function assertNoSensitiveRepositoryFiles(root) {
-  const count = sensitiveFindings(sensitiveInventory(root)).length;
+  const count = sensitiveFindings(repositorySensitiveInventory(root)).length;
   if (count > 0) {
     throw new Error(`Sensitive repository audit failed: signing or credential files=${count}`);
   }
@@ -166,10 +239,9 @@ export function assertNoSensitiveRepositoryFiles(root) {
 }
 
 export function assertNoSensitiveTree(root) {
-  const treeRoot = assertRealDirectory(root, "Sensitive audit root");
-  const inventory = new Set();
-  walkBoundedInventory(treeRoot, treeRoot, inventory, new Set([".git"]));
-  const count = sensitiveFindings([...inventory]).length;
+  const count = sensitiveFindings(
+    inventoryTree({ root, excludedRoots: [".git"] }).map(({ path }) => path),
+  ).length;
   if (count > 0) {
     throw new Error(`Sensitive tree audit failed: signing or credential files=${count}`);
   }
@@ -213,21 +285,6 @@ export function hashFiles({ root, files }) {
   return hashes;
 }
 
-function walkFiles(root, directory = root, output = []) {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const absolute = resolve(directory, entry.name);
-    if (entry.isSymbolicLink()) {
-      throw new Error("Audit roots must not contain symbolic links");
-    }
-    if (entry.isDirectory()) {
-      if (entry.name !== ".git") walkFiles(root, absolute, output);
-    } else if (entry.isFile()) {
-      output.push(relative(root, absolute).split(sep).join("/"));
-    }
-  }
-  return output.sort();
-}
-
 export function compareWholeFileHashes({ candidateRoot, comparisonRoot }) {
   const candidate = hashFiles({
     root: candidateRoot,
@@ -235,7 +292,9 @@ export function compareWholeFileHashes({ candidateRoot, comparisonRoot }) {
   });
   const comparison = hashFiles({
     root: comparisonRoot,
-    files: walkFiles(comparisonRoot),
+    files: inventoryTree({ root: comparisonRoot, excludedRoots: [".git"] })
+      .filter(({ type }) => type === "file")
+      .map(({ path }) => path),
   });
   const matches = [];
   for (const [digest, candidatePaths] of candidate) {
@@ -294,17 +353,23 @@ export function runAudit({
   productRoot,
 }) {
   const repositoryRoot = assertRealDirectory(root, "Repository root");
-  const files = listTrackedFiles(repositoryRoot);
   const terms = readTerms(prohibitedTermsFile);
   assertNoDependencyTrees(repositoryRoot);
   assertNoSensitiveRepositoryFiles(repositoryRoot);
+  const files = listTrackedFiles(repositoryRoot);
 
   const findings = scanTerms({ root: repositoryRoot, files, terms });
   findings.push(...scanCommitMetadata(repositoryRoot, terms));
 
   if (productRoot) {
     const absoluteProductRoot = assertRealDirectory(productRoot, "Product root");
-    const productFiles = walkFiles(absoluteProductRoot);
+    const productInventory = inventoryTree({ root: absoluteProductRoot, excludedRoots: [] });
+    if (productInventory.some(({ type }) => type === "symlink" || type === "other")) {
+      throw new Error("Audit product tree contains unsupported entries");
+    }
+    const productFiles = productInventory
+      .filter(({ type }) => type === "file")
+      .map(({ path }) => path);
     findings.push(...scanTerms({ root: absoluteProductRoot, files: productFiles, terms }));
   }
 

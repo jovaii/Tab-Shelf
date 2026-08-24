@@ -3,6 +3,7 @@ import {
   mkdtempSync,
   mkdirSync,
   rmSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -124,6 +125,79 @@ test("rejects every signing export extension and App Store credential filename",
     assert.throws(
       () => assertNoSensitiveRepositoryFiles(root),
       /signing or credential files=7/u,
+    );
+  });
+});
+
+test("rejects mixed-case variants of every exact credential filename pattern", () => {
+  withTemporaryDirectory((root) => {
+    writeFileSync(join(root, ".gitignore"), "*.p8\n*.json\n*.plist\n");
+    for (const name of [
+      "aUtHkEy_TeStOnLy.p8",
+      "ApP-StOrE-CoNnEcT-ApI-KeY.JsOn",
+      "AsC_CrEdEnTiAlS.P8",
+      "eXpOrToPtIoNs.PlIsT",
+    ]) {
+      writeFileSync(join(root, name), "synthetic fixture only\n");
+    }
+    assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
+    assert.equal(spawnSync("git", ["-C", root, "add", ".gitignore"]).status, 0);
+
+    assert.throws(
+      () => assertNoSensitiveRepositoryFiles(root),
+      /signing or credential files=4/u,
+    );
+  });
+});
+
+test("allows environment templates while rejecting real environment files", () => {
+  withTemporaryDirectory((root) => {
+    writeFileSync(join(root, ".gitignore"), ".env*\n");
+    writeFileSync(join(root, ".env.example"), "VALUE=template\n");
+    writeFileSync(join(root, ".env.sample"), "VALUE=template\n");
+    assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
+    assert.equal(spawnSync("git", ["-C", root, "add", ".gitignore"]).status, 0);
+    assert.doesNotThrow(() => assertNoSensitiveRepositoryFiles(root));
+
+    writeFileSync(join(root, ".env"), "VALUE=synthetic\n");
+    writeFileSync(join(root, ".env.production"), "VALUE=synthetic\n");
+    assert.throws(
+      () => assertNoSensitiveRepositoryFiles(root),
+      /signing or credential files=2/u,
+    );
+  });
+});
+
+test("records sensitive symlink names without traversing their targets", () => {
+  withTemporaryDirectory((root) => {
+    const outside = join(root, "outside.txt");
+    writeFileSync(outside, "synthetic target\n");
+    symlinkSync(outside, join(root, "synthetic.p12"));
+    assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
+
+    assert.throws(
+      () => assertNoSensitiveRepositoryFiles(root),
+      /signing or credential files=1/u,
+    );
+  });
+});
+
+test("does not apply output-root exclusions to unrelated nested directories", () => {
+  withTemporaryDirectory((root) => {
+    writeFileSync(join(root, ".gitignore"), "nested/\nartifacts/\n");
+    mkdirSync(join(root, "nested/build"), { recursive: true });
+    mkdirSync(join(root, "nested/generated"), { recursive: true });
+    mkdirSync(join(root, "artifacts/release"), { recursive: true });
+    writeFileSync(join(root, "nested/build/synthetic.p12"), "synthetic fixture only\n");
+    const credentialName = ["Auth", "Key_", "TESTONLY", ".p8"].join("");
+    writeFileSync(join(root, "nested/generated", credentialName), "synthetic fixture only\n");
+    writeFileSync(join(root, "artifacts/release/synthetic.ipa"), "synthetic fixture only\n");
+    assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
+    assert.equal(spawnSync("git", ["-C", root, "add", ".gitignore"]).status, 0);
+
+    assert.throws(
+      () => assertNoSensitiveRepositoryFiles(root),
+      /signing or credential files=3/u,
     );
   });
 });
