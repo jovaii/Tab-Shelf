@@ -133,6 +133,28 @@ export const THEME_PRESETS = deepFreeze({
     contrastBoost: true,
     accentColor: "#ff2abf",
   }),
+  "storm-horizon": theme({
+    name: "storm-horizon",
+    background: {
+      kind: "linear",
+      color: "#061923",
+      angle: 180,
+      stops: [
+        { color: "#061923", position: 0 },
+        { color: "#092b39", position: 46 },
+        { color: "#302631", position: 58 },
+        { color: "#ff6255", position: 65 },
+        { color: "#2189a5", position: 74 },
+        { color: "#072638", position: 100 },
+      ],
+    },
+    overlayColor: "#04141e",
+    overlayOpacity: 0.14,
+    cardOpacity: 0.84,
+    textMode: "light",
+    contrastBoost: true,
+    accentColor: "#f2b632",
+  }),
 });
 
 export const DEFAULT_PREFERENCES = THEME_PRESETS["quiet-neutral"];

@@ -11,15 +11,15 @@ import {
   validatePreferences,
 } from "../extension/core/preferences.mjs";
 
-test("uses only the new preference schema and four authored presets", () => {
+test("uses only the new preference schema and five authored presets", () => {
   assert.equal(PREFERENCE_KEY, "tabShelf.preferences.v1");
   assert.equal(DEFAULT_PREFERENCES.schema, PREFERENCE_KEY);
   assert.deepEqual(
     Object.keys(THEME_PRESETS),
-    ["quiet-neutral", "mist-teal", "ice-lavender", "neon-bloom"],
+    ["quiet-neutral", "mist-teal", "ice-lavender", "neon-bloom", "storm-horizon"],
   );
   assert.equal(Object.isFrozen(DEFAULT_PREFERENCES), true);
-  assert.equal(Object.isFrozen(THEME_PRESETS["mist-teal"].background.stops), true);
+  assert.equal(Object.isFrozen(THEME_PRESETS["storm-horizon"].background.stops), true);
 });
 
 test("creates a detached preference object from a preset", () => {

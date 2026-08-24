@@ -29,6 +29,19 @@ test("maps Neon Bloom to a bottom radial glow and light text", () => {
   assert.match(variables["--card-background"], /^rgb\(12 17 20 \/ 82%\)$/);
 });
 
+test("maps Storm Horizon to an original six-stop ocean glow", () => {
+  const variables = themeCssVariables(THEME_PRESETS["storm-horizon"]);
+
+  assert.equal(
+    variables["--page-background"],
+    "linear-gradient(180deg, #061923 0%, #092b39 46%, #302631 58%, #ff6255 65%, #2189a5 74%, #072638 100%)",
+  );
+  assert.equal(variables["--text-mode"], "light");
+  assert.equal(variables["--card-background"], "rgb(12 17 20 / 84%)");
+  assert.equal(variables["--color-accent-solid"], "#f2b632");
+  assert.equal(variables["--background-image"], "none");
+});
+
 test("orders gradient stops and renders a solid without a gradient", () => {
   const preferences = preferencesFromPreset("quiet-neutral");
   preferences.preset = "custom";
