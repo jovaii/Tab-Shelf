@@ -134,6 +134,7 @@ DEVELOPER_DIR="$DEVELOPER_DIR_PATH" xcrun xcodebuild \
   -derivedDataPath "$DERIVED_DATA" \
   CODE_SIGNING_ALLOWED=YES \
   CODE_SIGN_IDENTITY=- \
+  REGISTER_WITH_LAUNCH_SERVICES=NO \
   build
 
 BUILT_APP="$(single_built_app)"
