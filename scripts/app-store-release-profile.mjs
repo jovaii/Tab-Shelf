@@ -20,8 +20,52 @@ const executableSourceDigests = Object.freeze({
   "native/release/xcode-26.6/Tab Shelf/Tab Shelf Extension/SafariWebExtensionHandler.swift": "a10697d1812af24568d12405c84ba9ce5f982e48ce2e3ce7082b5a3b3c5addfb",
 });
 
+function extensionFile(digest) {
+  return Object.freeze({ type: "file", digest, modeClass: "file" });
+}
+
+const extensionTree = Object.freeze({
+  "background.js": extensionFile("e130c8f6e9ee5dfc4a57c7616a72a54f8b77b2d44e7885d239a2241b9cae9988"),
+  core: Object.freeze({ type: "directory", modeClass: "directory" }),
+  "core/preferences.mjs": extensionFile("a4e00ce025da7f4ffeec13798d876eac8aabfa62261d19bfcb07ad3c703f6b86"),
+  "core/tab-model.mjs": extensionFile("c5e2c55a590fbdbf2400f0fa9fc50c958bbca929020007df918d78fa7c54c249"),
+  icons: Object.freeze({ type: "directory", modeClass: "directory" }),
+  "icons/icon-128.png": extensionFile("873173a43f9dd4182516051daa2663bc82495c9fb626daaaf7d7fb3d91ec129e"),
+  "icons/icon-16.png": extensionFile("abcbea2a048c1d71da222d0c78d9d80e084980745c9b0f60c542015f0bc08fc3"),
+  "icons/icon-256.png": extensionFile("d6f4bf8bab89acb48402be0fc5913fa17b0efb3d0fdfd77b044733d9316614a3"),
+  "icons/icon-32.png": extensionFile("27cc51cb291455a60b075b5424283ed2fbcb09427e8d182416adb0119cfd99eb"),
+  "icons/icon-48.png": extensionFile("9b500e4d277ded4f53ae32ba80eb8a224386e805c4d685b5a547ae8630ffbfcf"),
+  "icons/icon-512.png": extensionFile("67189c4a018c0754e2c845ee8c54d9c4decad9dfaf5f786f349a32c3656df717"),
+  "icons/icon-64.png": extensionFile("830218ce2f2f23fd7e793ccd5600af615e050b7b6355b9b21ba1fcab21cfb880"),
+  "icons/icon-96.png": extensionFile("b907baeba1d95688f55ecbac8e9178f1d7c14acb2a8cbb191e66b7fd5d1375cc"),
+  "manifest.json": extensionFile("639cbd5638e1aaa576a14f27a0a86e887a1ab27039c7483341690ed48e552491"),
+  platform: Object.freeze({ type: "directory", modeClass: "directory" }),
+  "platform/safari-gateway.mjs": extensionFile("d8180aa9563a819d90b7158603987c97250353ba07e9041d5e6381ac26958806"),
+  "popup.css": extensionFile("0db16a7555c997cb41dfb9c2204979e322d02fce24f41ef5bb7ea99b53fbc7b4"),
+  "popup.html": extensionFile("0aed1aea8ec467acbee6350986534bed5b5332aa5f8d9f7e7b361962f7341bf6"),
+  "popup.mjs": extensionFile("4c5e92b325ebe6b42c3b106ee53d459e7a4f8c8732326d987f4d806db91aba45"),
+  "settings.css": extensionFile("2b4df189af9e5daa2bae96ff92bc071eec7ceec32a73564be0cee70795067930"),
+  "settings.html": extensionFile("d97c754fa6cca408b6e0984e98fab5ca0d353177b2f2c70b25244e388d51b7cc"),
+  "settings.mjs": extensionFile("1b5cebb616dde2fefded09f24708fd19f5b5eec172ab0e52ee7a9891f47e4f0b"),
+  shared: Object.freeze({ type: "directory", modeClass: "directory" }),
+  "shared/tokens.css": extensionFile("1b5f720a31f01b94340e51908484da29217ebb9f87d07fa07ec564ca135c67e4"),
+  "shelf.css": extensionFile("c59b9ca32a4f38af3b654bc47b2097bb5b7bae767fdc5aa89224e93680f20251"),
+  "shelf.html": extensionFile("c8bef6d4353da52bf22d3d66bd5a68eba3939751a45cf277a17d83da194ffa4e"),
+  "shelf.mjs": extensionFile("78630b998767937b038410a1b2241aeafe7261df64d211f1a0dbbcf02235df1a"),
+  ui: Object.freeze({ type: "directory", modeClass: "directory" }),
+  "ui/dom.mjs": extensionFile("2e8f134251ff526775a5bc4786340a6d48be1eddbb572da9a461de1a4b0527b4"),
+  "ui/shelf-view.mjs": extensionFile("8d907eccfb6cb04fc5883690a305704081b261a1fdcf432477879a4777c4af73"),
+  "ui/site-accent.mjs": extensionFile("360294a61e5b29f2829762528a189ba3d34b52860f861413456e85eb3a02caa5"),
+  "ui/theme-runtime.mjs": extensionFile("32c9999d018426246f66e13c87e1aa552e360885f85075dbd1d009a09a91cc2e"),
+});
+
 function file(template, digest, png) {
-  return Object.freeze({ template, digest, mode: 0o644, ...(png ? { png: Object.freeze(png) } : {}) });
+  return Object.freeze({
+    template,
+    digest,
+    modeClass: "file",
+    ...(png ? { png: Object.freeze(png) } : {}),
+  });
 }
 
 const generatedFiles = Object.freeze({
@@ -126,11 +170,31 @@ export const APP_STORE_RELEASE_PROFILE = Object.freeze({
   name: "xcode-26.6-safari-converter-26.6",
   xcode: Object.freeze({
     version: "26.6",
+    build: "17F113",
     objectVersion: "77",
     lastSwiftUpdateCheck: "2660",
     lastUpgradeCheck: "2660",
   }),
   safariConverter: Object.freeze({ version: "26.6" }),
+  extensionTree,
   executableSourceDigests,
   generatedFiles,
+  generatedDirectories: Object.freeze([
+    "Tab Shelf/Tab Shelf.xcodeproj/project.xcworkspace/xcshareddata",
+    "Tab Shelf/Tab Shelf.xcodeproj/project.xcworkspace/xcshareddata/swiftpm",
+    "Tab Shelf/Tab Shelf.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration",
+  ]),
+  artwork: Object.freeze([
+    "Tab Shelf/Tab Shelf/Resources/Icon.png",
+    "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-16@1x.png",
+    "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-16@2x.png",
+    "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-32@1x.png",
+    "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-32@2x.png",
+    "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-128@1x.png",
+    "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-128@2x.png",
+    "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-256@1x.png",
+    "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-256@2x.png",
+    "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-512@1x.png",
+    "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-512@2x.png",
+  ]),
 });

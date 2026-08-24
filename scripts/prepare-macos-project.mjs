@@ -134,6 +134,64 @@ function scanGeneratedTree(directory, projects) {
   }
 }
 
+function collectGeneratedModeTargets(root) {
+  const targets = [];
+  const inodes = new Map();
+  function walk(path) {
+    const status = lstatSync(path);
+    if (status.isSymbolicLink() || (!status.isDirectory() && !status.isFile())) {
+      throw new Error("generated project contains an unsupported filesystem entry");
+    }
+    if (status.isFile()) {
+      if (status.nlink !== 1) throw new Error("generated project contains a hard link");
+      const key = `${status.dev}:${status.ino}`;
+      if (inodes.has(key)) throw new Error("generated project contains an inode collision");
+      inodes.set(key, path);
+    }
+    targets.push({
+      path,
+      device: status.dev,
+      inode: status.ino,
+      type: status.isDirectory() ? "directory" : "file",
+      originalMode: status.mode & 0o777,
+      desiredMode: status.isDirectory() ? 0o755 : 0o644,
+    });
+    if (status.isDirectory()) {
+      for (const entry of readdirSync(path, { withFileTypes: true })) walk(join(path, entry.name));
+    }
+  }
+  walk(root);
+  return targets;
+}
+
+function normalizeGeneratedModes(targets) {
+  const changed = [];
+  const restore = () => {
+    for (const target of changed.slice().reverse()) fs.chmodSync(target.path, target.originalMode);
+  };
+  try {
+    for (const target of targets) {
+      const before = lstatSync(target.path);
+      if (before.dev !== target.device || before.ino !== target.inode || before.isSymbolicLink() ||
+          (target.type === "file") !== before.isFile() || (target.type === "directory") !== before.isDirectory()) {
+        throw new Error("generated project changed during mode normalization");
+      }
+      if (target.originalMode === target.desiredMode) continue;
+      fs.chmodSync(target.path, target.desiredMode);
+      const after = lstatSync(target.path);
+      if (after.dev !== target.device || after.ino !== target.inode ||
+          (after.mode & 0o777) !== target.desiredMode) {
+        throw new Error("generated project changed during mode normalization");
+      }
+      changed.push(target);
+    }
+    return restore;
+  } catch (error) {
+    restore();
+    throw error;
+  }
+}
+
 function requireOneTarget(projectContainer, targetName, label) {
   const count = readdirSync(projectContainer, { withFileTypes: true }).filter(
     (entry) => entry.isDirectory() && entry.name === targetName,
@@ -771,8 +829,9 @@ function stageOperation(operation) {
         fs.constants.O_CREAT |
         fs.constants.O_EXCL |
         (fs.constants.O_NOFOLLOW ?? 0),
-      operation.handle.inspected.mode & 0o777,
+      0o644,
     );
+    fs.fchmodSync(descriptor, 0o644);
     fs.writeFileSync(descriptor, operation.contents);
     fs.fsyncSync(descriptor);
     fs.closeSync(descriptor);
@@ -850,6 +909,7 @@ export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}
 
   const projects = [];
   scanGeneratedTree(resolvedGeneratedRoot, projects);
+  const generatedModeTargets = collectGeneratedModeTargets(resolvedGeneratedRoot);
   if (projects.length !== 1) {
     throw new Error(`generated Xcode projects: expected 1, found ${projects.length}`);
   }
@@ -1001,8 +1061,10 @@ export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}
     }));
     for (const { label, contents } of preparedCopies) validateTemplate(label, contents);
 
-    commitTransaction(
-      [
+    const restoreModes = normalizeGeneratedModes(generatedModeTargets);
+    try {
+      commitTransaction(
+        [
         {
           destination: projectSettings,
           contents: Buffer.from(preparedProject),
@@ -1013,9 +1075,13 @@ export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}
           contents,
           handle: handles.get(destination),
         })),
-      ],
-      handles,
-    );
+        ],
+        handles,
+      );
+    } catch (error) {
+      restoreModes();
+      throw error;
+    }
   } finally {
     for (const handle of handles.values()) fs.closeSync(handle.descriptor);
   }

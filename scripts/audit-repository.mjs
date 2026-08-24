@@ -173,12 +173,22 @@ export function inventoryTree({ root, excludedRoots = [], auditHooks } = {}) {
     }
     for (const entry of entries) {
       const absolute = resolve(directory, entry.name);
-      const path = relative(treeRoot, absolute).split(sep).join("/");
-      if (isExcluded(path, exclusions)) continue;
+      const childPath = relative(treeRoot, absolute).split(sep).join("/");
+      if (isExcluded(childPath, exclusions)) continue;
       let status;
       try {
+        auditHooks?.beforeChildLookup?.({ path });
+        const beforeChild = lstatSync(directory);
+        if (!sameInventoryIdentity(inspected, beforeChild)) {
+          throw new Error("Inventory tree changed during validation");
+        }
         status = lstatSync(absolute);
+        const afterChild = lstatSync(directory);
+        if (!sameInventoryIdentity(inspected, afterChild)) {
+          throw new Error("Inventory tree changed during validation");
+        }
       } catch (error) {
+        if (error?.message === "Inventory tree changed during validation") throw error;
         throw new Error("Inventory entry is unavailable", { cause: error });
       }
       const type = status.isSymbolicLink()
@@ -189,7 +199,7 @@ export function inventoryTree({ root, excludedRoots = [], auditHooks } = {}) {
             ? "file"
             : "other";
       inventory.push(Object.freeze({
-        path,
+        path: childPath,
         type,
         device: status.dev,
         inode: status.ino,
@@ -197,7 +207,18 @@ export function inventoryTree({ root, excludedRoots = [], auditHooks } = {}) {
         size: status.size,
         mode: status.mode & 0o777,
       }));
-      if (type === "directory") walk(absolute, path, status);
+      if (type === "directory") {
+        try {
+          const beforeDescent = lstatSync(directory);
+          if (!sameInventoryIdentity(inspected, beforeDescent)) {
+            throw new Error("Inventory tree changed during validation");
+          }
+        } catch (error) {
+          if (error?.message === "Inventory tree changed during validation") throw error;
+          throw new Error("Inventory tree is unavailable", { cause: error });
+        }
+        walk(absolute, childPath, status);
+      }
     }
     try {
       const afterRecursion = lstatSync(directory);

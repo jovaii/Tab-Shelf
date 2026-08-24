@@ -39,6 +39,64 @@ const APPLE_PROJECT_DIRECTORIES = Object.freeze([
   "project.xcworkspace/xcshareddata/swiftpm",
   "project.xcworkspace/xcshareddata/swiftpm/configuration",
 ]);
+const APPROVED_PROFILE_KEYS = Object.freeze([
+  "artwork", "executableSourceDigests", "extensionTree", "generatedDirectories",
+  "generatedFiles", "name", "safariConverter", "xcode",
+]);
+const APPROVED_XCODE_PROFILE = Object.freeze({
+  version: "26.6",
+  build: "17F113",
+  objectVersion: "77",
+  lastSwiftUpdateCheck: "2660",
+  lastUpgradeCheck: "2660",
+});
+const APPROVED_PROFILE_SEAL = "f9e784480579fe841de9e616bdb336e679cc250e11ae7a3537d360908ce1d3d9";
+const APPROVED_EXTENSION_PATHS = Object.freeze([
+  "background.js", "core", "core/preferences.mjs", "core/tab-model.mjs", "icons",
+  "icons/icon-128.png", "icons/icon-16.png", "icons/icon-256.png", "icons/icon-32.png",
+  "icons/icon-48.png", "icons/icon-512.png", "icons/icon-64.png", "icons/icon-96.png",
+  "manifest.json", "platform", "platform/safari-gateway.mjs", "popup.css", "popup.html",
+  "popup.mjs", "settings.css", "settings.html", "settings.mjs", "shared",
+  "shared/tokens.css", "shelf.css", "shelf.html", "shelf.mjs", "ui", "ui/dom.mjs",
+  "ui/shelf-view.mjs", "ui/site-accent.mjs", "ui/theme-runtime.mjs",
+]);
+const APPROVED_GENERATED_PATHS = Object.freeze([
+  "Tab Shelf/Tab Shelf Extension/Info.plist",
+  "Tab Shelf/Tab Shelf Extension/SafariWebExtensionHandler.swift",
+  "Tab Shelf/Tab Shelf/AppDelegate.swift",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/AccentColor.colorset/Contents.json",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/Contents.json",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-128@1x.png",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-128@2x.png",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-16@1x.png",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-16@2x.png",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-256@1x.png",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-256@2x.png",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-32@1x.png",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-32@2x.png",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-512@1x.png",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/AppIcon.appiconset/mac-icon-512@2x.png",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/Contents.json",
+  "Tab Shelf/Tab Shelf/Assets.xcassets/LargeIcon.imageset/Contents.json",
+  "Tab Shelf/Tab Shelf/Base.lproj/Main.storyboard",
+  "Tab Shelf/Tab Shelf/Info.plist",
+  "Tab Shelf/Tab Shelf/Resources/Icon.png",
+  "Tab Shelf/Tab Shelf.xcodeproj/project.xcworkspace/contents.xcworkspacedata",
+]);
+const APPROVED_ARTWORK_PATHS = Object.freeze([
+  "Tab Shelf/Tab Shelf/Resources/Icon.png",
+  ...APPROVED_GENERATED_PATHS.filter((path) => path.endsWith(".png") && !path.endsWith("Resources/Icon.png")),
+].sort());
+const APPROVED_EXECUTABLE_PATHS = Object.freeze([
+  "extension/background.js", "extension/core/preferences.mjs", "extension/core/tab-model.mjs",
+  "extension/platform/safari-gateway.mjs", "extension/popup.html", "extension/popup.mjs",
+  "extension/settings.html", "extension/settings.mjs", "extension/shelf.html", "extension/shelf.mjs",
+  "extension/ui/dom.mjs", "extension/ui/shelf-view.mjs", "extension/ui/site-accent.mjs",
+  "extension/ui/theme-runtime.mjs", "native/host/Base.lproj/Main.html", "native/host/Script.js",
+  "native/host/ViewController.swift",
+  "native/release/xcode-26.6/Tab Shelf/Tab Shelf Extension/SafariWebExtensionHandler.swift",
+  "native/release/xcode-26.6/Tab Shelf/Tab Shelf/AppDelegate.swift",
+]);
 const REMOTE_EMBEDDED_RESOURCE = /<[^>]*(?:https?:)?\/\/[^>]*>/iu;
 const REMOTE_CSS_RESOURCE = /(?:@import\s+(?:url\()?|url\()\s*["']?\s*(?:https?:)?\/\//iu;
 const RUNTIME_NETWORK_APIS = Object.freeze([
@@ -84,6 +142,64 @@ function assertApprovedRelease() {
   }
 }
 
+function sameKeys(value, expected) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]);
+}
+
+function samePaths(value, expected) {
+  if (!Array.isArray(value)) return false;
+  const actual = [...value].sort();
+  const wanted = [...expected].sort();
+  return actual.length === wanted.length && actual.every((path, index) => path === wanted[index]);
+}
+
+function assertApprovedProfileShape() {
+  const profile = APP_STORE_RELEASE_PROFILE;
+  if (
+    sha256(Buffer.from(JSON.stringify(profile))) !== APPROVED_PROFILE_SEAL ||
+    !sameKeys(profile, APPROVED_PROFILE_KEYS) ||
+    profile.name !== "xcode-26.6-safari-converter-26.6" ||
+    !sameKeys(profile.xcode, Object.keys(APPROVED_XCODE_PROFILE)) ||
+    Object.keys(APPROVED_XCODE_PROFILE).some((key) => profile.xcode[key] !== APPROVED_XCODE_PROFILE[key]) ||
+    !sameKeys(profile.safariConverter, ["version"]) ||
+    profile.safariConverter.version !== "26.6" ||
+    !sameKeys(profile.extensionTree, APPROVED_EXTENSION_PATHS) ||
+    !sameKeys(profile.generatedFiles, APPROVED_GENERATED_PATHS) ||
+    !sameKeys(profile.executableSourceDigests, APPROVED_EXECUTABLE_PATHS) ||
+    !samePaths(profile.generatedDirectories, APPLE_PROJECT_DIRECTORIES.map((path) => `Tab Shelf/Tab Shelf.xcodeproj/${path}`)) ||
+    !samePaths(profile.artwork, APPROVED_ARTWORK_PATHS)
+  ) fail("source_release_profile_invalid");
+  for (const path of APPROVED_EXTENSION_PATHS) {
+    const entry = profile.extensionTree[path];
+    const expectedType = path === "core" || path === "icons" || path === "platform" || path === "shared" || path === "ui"
+      ? "directory"
+      : "file";
+    if (!sameKeys(entry, expectedType === "file" ? ["digest", "modeClass", "type"] : ["modeClass", "type"]) ||
+        entry.type !== expectedType || entry.modeClass !== expectedType ||
+        (expectedType === "file" && !/^[a-f0-9]{64}$/u.test(entry.digest))) {
+      fail("source_release_profile_invalid");
+    }
+  }
+  for (const path of APPROVED_GENERATED_PATHS) {
+    const entry = profile.generatedFiles[path];
+    const keys = entry.png ? ["digest", "modeClass", "png", "template"] : ["digest", "modeClass", "template"];
+    if (!sameKeys(entry, keys) || entry.template !== `native/release/xcode-26.6/${path}` ||
+        entry.modeClass !== "file" || !/^[a-f0-9]{64}$/u.test(entry.digest)) {
+      fail("source_release_profile_invalid");
+    }
+  }
+}
+
+function modeMatches(modeClass, mode) {
+  if ((mode & 0o022) !== 0) return false;
+  if (modeClass === "file") return (mode & 0o111) === 0;
+  if (modeClass === "directory") return (mode & 0o100) !== 0;
+  return false;
+}
+
 function safeDirectory(root, candidate, scope, label) {
   try {
     return resolveVerifiedRepositoryPath({
@@ -122,8 +238,8 @@ function safeInventory(root, scope) {
   }
 }
 
-function readJSON(root, candidate, scope, label) {
-  const source = safeFile(root, candidate, scope, label).contents.toString("utf8");
+function readJSON(root, candidate, scope, label, expectedIdentity) {
+  const source = safeFile(root, candidate, scope, label, expectedIdentity).contents.toString("utf8");
   try {
     return JSON.parse(source);
   } catch {
@@ -154,6 +270,31 @@ function validateManifest(manifest, scope) {
   return permissions;
 }
 
+function validatePinnedManifest(manifest) {
+  const keys = [
+    "action", "background", "chrome_url_overrides", "description", "icons",
+    "manifest_version", "name", "permissions", "short_name", "version",
+  ];
+  if (!sameKeys(manifest, keys)) fail("source_extension_tree_invalid reason=manifest count=1");
+  const references = [
+    ...(Array.isArray(manifest.background?.scripts) ? manifest.background.scripts : []),
+    ...Object.values(manifest.chrome_url_overrides ?? {}),
+    manifest.action?.default_popup,
+    ...Object.values(manifest.action?.default_icon ?? {}),
+    ...Object.values(manifest.icons ?? {}),
+  ].filter((path) => typeof path === "string").sort();
+  const expected = [
+    "background.js", "icons/icon-128.png", "icons/icon-128.png", "icons/icon-16.png",
+    "icons/icon-16.png", "icons/icon-256.png", "icons/icon-32.png", "icons/icon-32.png",
+    "icons/icon-48.png", "icons/icon-48.png", "icons/icon-512.png", "icons/icon-64.png",
+    "icons/icon-64.png", "icons/icon-96.png", "icons/icon-96.png",
+    "popup.html", "shelf.html",
+  ].sort();
+  if (!samePaths(references, expected) || references.some((path) => !Object.hasOwn(APP_STORE_RELEASE_PROFILE.extensionTree, path))) {
+    fail("source_extension_tree_invalid reason=manifest count=1");
+  }
+}
+
 function assertNoTreeSymlinks(inventories, scope) {
   if (inventories.some((inventory) => inventory.some(({ type }) => type === "symlink"))) {
     fail(`${scope}_path_invalid label=product_tree`);
@@ -168,7 +309,7 @@ function scanProductPolicy({ root, trees, scope }) {
     for (const entry of tree.inventory) {
       if (entry.type !== "file") continue;
       const extension = extname(entry.path).toLocaleLowerCase("en-US");
-      if (![".css", ".html", ".js", ".mjs", ".swift"].includes(extension)) continue;
+      if (![".cjs", ".css", ".htm", ".html", ".js", ".mjs", ".swift", ".xhtml"].includes(extension)) continue;
       const source = safeFile(
         root,
         join(tree.root, entry.path),
@@ -176,14 +317,14 @@ function scanProductPolicy({ root, trees, scope }) {
         "product_source",
         entry,
       ).contents.toString("utf8");
-      if (extension === ".html" && REMOTE_EMBEDDED_RESOURCE.test(source)) {
+      if ([".htm", ".html", ".xhtml"].includes(extension) && REMOTE_EMBEDDED_RESOURCE.test(source)) {
         fail(`${scope}_remote_resource_found`);
       }
-      if ((extension === ".css" || extension === ".html") && REMOTE_CSS_RESOURCE.test(source)) {
+      if ([".css", ".htm", ".html", ".xhtml"].includes(extension) && REMOTE_CSS_RESOURCE.test(source)) {
         fail(`${scope}_remote_resource_found`);
       }
       if (
-        (extension === ".html" || extension === ".js" || extension === ".mjs") &&
+        [".cjs", ".htm", ".html", ".js", ".mjs", ".xhtml"].includes(extension) &&
         RUNTIME_NETWORK_APIS.some((pattern) => pattern.test(source))
       ) {
         fail(`${scope}_network_api_found runtime network APIs`);
@@ -220,22 +361,22 @@ function runSafeAudit(options, scope) {
   }
 }
 
-function addExpectedDirectory(expected, path, mode = 0o755) {
+function addExpectedDirectory(expected, path) {
   const leaf = path;
   let current = path;
   while (current && current !== ".") {
     if (!expected.has(current)) {
       expected.set(
         current,
-        Object.freeze({ type: "directory", mode: current === leaf ? mode : 0o755 }),
+        Object.freeze({ type: "directory", modeClass: "directory" }),
       );
     }
     current = dirname(current);
   }
 }
 
-function addExpectedFile(expected, path, mode = 0o644) {
-  expected.set(path, Object.freeze({ type: "file", mode }));
+function addExpectedFile(expected, path) {
+  expected.set(path, Object.freeze({ type: "file", modeClass: "file" }));
   addExpectedDirectory(expected, dirname(path));
 }
 
@@ -249,10 +390,10 @@ function buildGeneratedContract(sourceExtensionInventory) {
 
   addExpectedFile(expected, join(project, "project.pbxproj"));
   for (const path of APPLE_PROJECT_DIRECTORIES) {
-    addExpectedDirectory(expected, join(project, path), 0o777);
+    addExpectedDirectory(expected, join(project, path));
   }
   for (const [path, profile] of Object.entries(APP_STORE_RELEASE_PROFILE.generatedFiles)) {
-    addExpectedFile(expected, path, profile.mode);
+    addExpectedFile(expected, path);
   }
   for (const [source, output] of [
     ["ViewController.swift", "ViewController.swift"],
@@ -260,14 +401,14 @@ function buildGeneratedContract(sourceExtensionInventory) {
     ["Style.css", "Resources/Style.css"],
     ["Script.js", "Resources/Script.js"],
   ]) {
-    addExpectedFile(expected, join(app, output), 0o644);
+    addExpectedFile(expected, join(app, output));
   }
   addExpectedDirectory(expected, join(extension, "Resources"));
   for (const entry of sourceExtensionInventory) {
     const output = join(extension, "Resources", entry.path);
     expected.set(
       output,
-      Object.freeze({ type: entry.type, mode: entry.type === "file" ? 0o644 : 0o755 }),
+      Object.freeze({ type: entry.type, modeClass: entry.type }),
     );
     addExpectedDirectory(expected, dirname(output));
   }
@@ -292,7 +433,7 @@ function validateGeneratedShape(inventory, expected) {
   if (wrongType.length > 0) {
     fail(`generated_resource_tree_invalid reason=type count=${wrongType.length}`);
   }
-  const wrongMode = inventory.filter(({ path, mode }) => expected.get(path)?.mode !== mode);
+  const wrongMode = inventory.filter(({ path, mode }) => !modeMatches(expected.get(path)?.modeClass, mode));
   if (wrongMode.length > 0) {
     fail(`generated_resource_tree_invalid reason=mode count=${wrongMode.length}`);
   }
@@ -315,6 +456,41 @@ function validateGeneratedShape(inventory, expected) {
   if (aliases.size > 0) {
     fail(`generated_resource_tree_invalid reason=alias count=${aliases.size}`);
   }
+}
+
+function validateExtensionTree(root, extensionRoot, inventory, { contents = true } = {}) {
+  const expected = APP_STORE_RELEASE_PROFILE.extensionTree;
+  const actual = new Map(inventory.map((entry) => [entry.path, entry]));
+  const aliases = new Set();
+  const inodes = new Map();
+  for (const entry of inventory.filter(({ type }) => type === "file")) {
+    if (entry.links !== 1) aliases.add(entry.path);
+    const key = `${entry.device}:${entry.inode}`;
+    const first = inodes.get(key);
+    if (first) {
+      aliases.add(first);
+      aliases.add(entry.path);
+    } else inodes.set(key, entry.path);
+  }
+  if (aliases.size > 0) fail(`source_extension_tree_invalid reason=alias count=${aliases.size}`);
+  const symlinks = inventory.filter(({ type }) => type === "symlink");
+  if (symlinks.length > 0) fail(`source_extension_tree_invalid reason=symlink count=${symlinks.length}`);
+  const missing = Object.keys(expected).filter((path) => !actual.has(path));
+  if (missing.length > 0) fail(`source_extension_tree_invalid reason=missing count=${missing.length}`);
+  const unexpected = inventory.filter(({ path }) => !Object.hasOwn(expected, path));
+  if (unexpected.length > 0) fail(`source_extension_tree_invalid reason=unexpected count=${unexpected.length}`);
+  const wrongType = inventory.filter(({ path, type }) => expected[path]?.type !== type);
+  if (wrongType.length > 0) fail(`source_extension_tree_invalid reason=type count=${wrongType.length}`);
+  const wrongMode = inventory.filter(({ path, mode }) => !modeMatches(expected[path]?.modeClass, mode));
+  if (wrongMode.length > 0) fail(`source_extension_tree_invalid reason=mode count=${wrongMode.length}`);
+  if (!contents) return;
+  let changed = 0;
+  for (const [path, profile] of Object.entries(expected)) {
+    if (profile.type !== "file") continue;
+    const contents = safeFile(root, join(extensionRoot, path), "source", "extension_resource", actual.get(path)).contents;
+    if (sha256(contents) !== profile.digest) changed += 1;
+  }
+  if (changed > 0) fail(`source_extension_tree_invalid reason=changed count=${changed}`);
 }
 
 function compareFiles(root, pairs) {
@@ -395,12 +571,19 @@ function validateSourceReleaseContent(root, trees) {
 
 function validateSourceProductModes(inventories) {
   const changed = inventories.flat().filter(({ type, mode }) => {
-    if (type === "file") return mode !== 0o644;
-    if (type === "directory") return mode !== 0o755;
+    if (type === "file") return !modeMatches("file", mode);
+    if (type === "directory") return !modeMatches("directory", mode);
     return false;
   });
   if (changed.length > 0) {
     fail(`source_release_content_invalid reason=mode count=${changed.length}`);
+  }
+}
+
+function validateProfileTemplates(root) {
+  for (const profile of Object.values(APP_STORE_RELEASE_PROFILE.generatedFiles)) {
+    const contents = safeFile(root, profile.template, "source", "release_profile").contents;
+    if (sha256(contents) !== profile.digest) fail("source_release_profile_invalid");
   }
 }
 
@@ -424,13 +607,7 @@ function validateGeneratedProfileFiles(root, generatedRoot, generatedEntries) {
   let profileChanged = 0;
   let invalidPng = 0;
   for (const [generatedPath, profile] of Object.entries(APP_STORE_RELEASE_PROFILE.generatedFiles)) {
-    const profileContents = safeFile(
-      root,
-      profile.template,
-      "source",
-      "release_profile",
-    ).contents;
-    if (sha256(profileContents) !== profile.digest) fail("source_release_profile_invalid");
+    const profileContents = safeFile(root, profile.template, "source", "release_profile").contents;
     const generatedContents = safeFile(
       root,
       join(generatedRoot, generatedPath),
@@ -480,7 +657,7 @@ function validateGeneratedProfile(root, projectPath, projectIdentity, appInfoPat
     "converter_profile",
     appInfoIdentity,
   ).contents.toString("utf8");
-  const expected = APP_STORE_RELEASE_PROFILE.xcode;
+  const expected = APPROVED_XCODE_PROFILE;
   try {
     validatePreparedProjectProfile(project, {
       objectVersion: expected.objectVersion,
@@ -490,9 +667,15 @@ function validateGeneratedProfile(root, projectPath, projectIdentity, appInfoPat
   } catch {
     fail("generated_profile_unsupported");
   }
-  if (
-    countExact(info, `<string>${APP_STORE_RELEASE_PROFILE.safariConverter.version}</string>`) !== 1
-  ) fail("generated_profile_unsupported");
+  const withoutComments = info.replace(/<!--[\s\S]*?-->/gu, "");
+  if (withoutComments.includes("<!--") || withoutComments.includes("-->")) {
+    fail("generated_profile_unsupported");
+  }
+  const pairs = [...withoutComments.matchAll(/<key>\s*([^<]+?)\s*<\/key>\s*<string>\s*([^<]*?)\s*<\/string>/gu)];
+  const converterPairs = pairs.filter((match) => match[1].trim() === "SFSafariWebExtensionConverterVersion");
+  if (converterPairs.length !== 1 || converterPairs[0][2].trim() !== "26.6") {
+    fail("generated_profile_unsupported");
+  }
   return project;
 }
 
@@ -507,41 +690,84 @@ function projectError(error) {
   fail("generated_project_invalid");
 }
 
-export function checkSourceReadiness({
-  root = process.cwd(),
-  prohibitedTermsFile = process.env.TAB_SHELF_PROHIBITED_TERMS_FILE,
-} = {}) {
+function checkImmutableSourceGate(root) {
   assertApprovedRelease();
+  assertApprovedProfileShape();
   const repositoryRoot = safeDirectory(root, ".", "source", "repository_root").root;
-  const extensionRoot = safeDirectory(
-    repositoryRoot,
-    "extension",
-    "source",
-    "extension_source",
-  ).path;
-  const hostRoot = safeDirectory(
-    repositoryRoot,
-    "native/host",
-    "source",
-    "native_host_template",
-  ).path;
+  const extensionRoot = safeDirectory(repositoryRoot, "extension", "source", "extension_source").path;
+  const hostRoot = safeDirectory(repositoryRoot, "native/host", "source", "native_host_template").path;
   const releaseProfileRoot = safeDirectory(
     repositoryRoot,
     "native/release/xcode-26.6",
     "source",
     "release_profile",
   ).path;
-  const packageManifest = readJSON(
-    repositoryRoot,
-    "package.json",
-    "source",
-    "package_manifest",
-  );
+  for (const path of HOST_TEMPLATES) {
+    safeFile(repositoryRoot, join("native/host", path), "source", "native_host_template");
+  }
+  const extensionInventory = safeInventory(extensionRoot, "source");
+  const hostInventory = safeInventory(hostRoot, "source");
+  const releaseProfileInventory = safeInventory(releaseProfileRoot, "source");
+  validateExtensionTree(repositoryRoot, extensionRoot, extensionInventory, { contents: false });
+  assertNoTreeSymlinks([hostInventory, releaseProfileInventory], "source");
+  validateSourceProductModes([hostInventory, releaseProfileInventory]);
   const extensionManifest = readJSON(
     repositoryRoot,
     "extension/manifest.json",
     "source",
     "extension_manifest",
+    extensionInventory.find(({ path }) => path === "manifest.json"),
+  );
+  const permissions = validateManifest(extensionManifest, "source");
+  scanProductPolicy({
+    root: repositoryRoot,
+    trees: [
+      { root: extensionRoot, inventory: extensionInventory },
+      { root: hostRoot, inventory: hostInventory },
+      { root: releaseProfileRoot, inventory: releaseProfileInventory },
+    ],
+    scope: "source",
+  });
+  const controller = safeFile(
+    repositoryRoot,
+    "native/host/ViewController.swift",
+    "source",
+    "native_host_template",
+  ).contents.toString("utf8");
+  const identifier = `let extensionBundleIdentifier = "${RELEASE.extensionBundleIdentifier}"`;
+  if (countExact(controller, identifier) !== 1) fail("source_identity_invalid");
+  validateExtensionTree(repositoryRoot, extensionRoot, extensionInventory);
+  validatePinnedManifest(extensionManifest);
+  validateProfileTemplates(repositoryRoot);
+  validateSourceReleaseContent(repositoryRoot, [
+    { prefix: "extension", root: extensionRoot, inventory: extensionInventory },
+    { prefix: "native/host", root: hostRoot, inventory: hostInventory },
+    { prefix: "native/release/xcode-26.6", root: releaseProfileRoot, inventory: releaseProfileInventory },
+  ]);
+  return Object.freeze({
+    repositoryRoot,
+    extensionRoot,
+    hostRoot,
+    releaseProfileRoot,
+    extensionInventory,
+    hostInventory,
+    releaseProfileInventory,
+    extensionManifest,
+    permissions,
+  });
+}
+
+export function checkSourceReadiness({
+  root = process.cwd(),
+  prohibitedTermsFile = process.env.TAB_SHELF_PROHIBITED_TERMS_FILE,
+} = {}) {
+  const gate = checkImmutableSourceGate(root);
+  const { repositoryRoot, hostRoot, extensionManifest, permissions } = gate;
+  const packageManifest = readJSON(
+    repositoryRoot,
+    "package.json",
+    "source",
+    "package_manifest",
   );
 
   try {
@@ -552,7 +778,6 @@ export function checkSourceReadiness({
   } catch {
     fail("source_version_invalid");
   }
-  const permissions = validateManifest(extensionManifest, "source");
   try {
     assertNoDependencyTrees(repositoryRoot);
   } catch {
@@ -572,36 +797,6 @@ export function checkSourceReadiness({
   const identifier = `let extensionBundleIdentifier = "${RELEASE.extensionBundleIdentifier}"`;
   if (countExact(controller, identifier) !== 1) fail("source_identity_invalid");
 
-  const extensionInventory = safeInventory(extensionRoot, "source");
-  const hostInventory = safeInventory(hostRoot, "source");
-  const releaseProfileInventory = safeInventory(releaseProfileRoot, "source");
-  assertNoTreeSymlinks(
-    [extensionInventory, hostInventory, releaseProfileInventory],
-    "source",
-  );
-  validateSourceProductModes([
-    extensionInventory,
-    hostInventory,
-    releaseProfileInventory,
-  ]);
-  scanProductPolicy({
-    root: repositoryRoot,
-    trees: [
-      { root: extensionRoot, inventory: extensionInventory },
-      { root: hostRoot, inventory: hostInventory },
-      { root: releaseProfileRoot, inventory: releaseProfileInventory },
-    ],
-    scope: "source",
-  });
-  validateSourceReleaseContent(repositoryRoot, [
-    { prefix: "extension", root: extensionRoot, inventory: extensionInventory },
-    { prefix: "native/host", root: hostRoot, inventory: hostInventory },
-    {
-      prefix: "native/release/xcode-26.6",
-      root: releaseProfileRoot,
-      inventory: releaseProfileInventory,
-    },
-  ]);
   runSafeAudit({ root: repositoryRoot, prohibitedTermsFile }, "source");
 
   return Object.freeze({
@@ -619,8 +814,14 @@ export function checkGeneratedReadiness({
   generatedRoot,
   prohibitedTermsFile = process.env.TAB_SHELF_PROHIBITED_TERMS_FILE,
 } = {}) {
-  assertApprovedRelease();
-  const repositoryRoot = safeDirectory(root, ".", "generated", "repository_root").root;
+  const gate = checkImmutableSourceGate(root);
+  const {
+    repositoryRoot,
+    extensionRoot: sourceExtensionRoot,
+    extensionInventory: sourceExtensionInventory,
+    hostRoot: sourceHostRoot,
+    hostInventory: sourceHostInventory,
+  } = gate;
   let generated;
   try {
     generated = resolveVerifiedRepositoryPath({
@@ -636,22 +837,6 @@ export function checkGeneratedReadiness({
   const sensitiveCount = countSensitiveArtifacts(generatedInventory);
   if (sensitiveCount > 0) fail(`sensitive_artifacts_found count=${sensitiveCount}`);
 
-  const sourceExtensionRoot = safeDirectory(
-    repositoryRoot,
-    "extension",
-    "source",
-    "extension_source",
-  ).path;
-  const sourceExtensionInventory = safeInventory(sourceExtensionRoot, "source");
-  assertNoTreeSymlinks([sourceExtensionInventory], "source");
-  const sourceHostRoot = safeDirectory(
-    repositoryRoot,
-    "native/host",
-    "source",
-    "native_host_template",
-  ).path;
-  const sourceHostInventory = safeInventory(sourceHostRoot, "source");
-  assertNoTreeSymlinks([sourceHostInventory], "source");
   const expected = buildGeneratedContract(sourceExtensionInventory);
   validateGeneratedShape(generatedInventory, expected);
   const generatedEntries = new Map(generatedInventory.map((entry) => [entry.path, entry]));
@@ -726,6 +911,7 @@ export function checkGeneratedReadiness({
     join(extensionResources, "manifest.json"),
     "generated",
     "extension_manifest",
+    generatedEntries.get(join(RELEASE.productName, `${RELEASE.productName} Extension/Resources/manifest.json`)),
   );
   validateManifest(generatedManifest, "generated");
   const projectPath = join(

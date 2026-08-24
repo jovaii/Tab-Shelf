@@ -251,6 +251,40 @@ test("inventory rejects a directory swapped to an outside symlink", () => {
   });
 });
 
+test("inventory revalidates a parent before every child lookup", () => {
+  withTemporaryDirectory((root) => {
+    const directory = join(root, "candidate");
+    const moved = join(root, "candidate-original");
+    const outside = mkdtempSync(join(tmpdir(), "tab-shelf-audit-child-outside-"));
+    try {
+      mkdirSync(directory);
+      writeFileSync(join(directory, "inside.txt"), "inside\n");
+      writeFileSync(join(outside, "outside-marker.txt"), "outside marker\n");
+      assert.throws(
+        () => inventoryTree({
+          root,
+          excludedRoots: [],
+          auditHooks: {
+            beforeChildLookup({ path }) {
+              if (path !== "candidate") return;
+              renameSync(directory, moved);
+              symlinkSync(outside, directory, "dir");
+            },
+          },
+        }),
+        (error) => {
+          assert.match(error.message, /Inventory tree changed during validation/u);
+          assert.equal(error.message.includes(outside), false);
+          assert.equal(error.message.includes("outside-marker"), false);
+          return true;
+        },
+      );
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+});
+
 test("audit read rejects a file swapped to an outside symlink", () => {
   withTemporaryDirectory((root) => {
     const candidate = join(root, "candidate.txt");

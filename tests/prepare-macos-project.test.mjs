@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  chmodSync,
   cpSync,
   linkSync,
   lstatSync,
@@ -293,6 +294,35 @@ test("prepares one generated Xcode project from tracked release values and host 
     appTarget: realpathSync(fixture.appTarget),
     extensionTarget: realpathSync(fixture.extensionTarget),
   });
+});
+
+test("normalizes generated source files and directories to release modes", (t) => {
+  const fixture = makeFixture(t);
+  const metadata = join(
+    fixture.project,
+    "project.xcworkspace/xcshareddata/swiftpm/configuration",
+  );
+  mkdirSync(metadata, { recursive: true });
+  chmodSync(join(fixture.appTarget, "AppDelegate.swift"), 0o755);
+  chmodSync(join(fixture.extensionTarget, "SafariWebExtensionHandler.swift"), 0o600);
+  chmodSync(join(fixture.project, "project.xcworkspace/xcshareddata"), 0o777);
+  chmodSync(join(fixture.project, "project.xcworkspace/xcshareddata/swiftpm"), 0o777);
+  chmodSync(metadata, 0o777);
+
+  prepareMacOSProject({ root: fixture.root, generatedRoot: fixture.generatedRoot });
+
+  assert.equal(lstatSync(join(fixture.appTarget, "AppDelegate.swift")).mode & 0o777, 0o644);
+  assert.equal(
+    lstatSync(join(fixture.extensionTarget, "SafariWebExtensionHandler.swift")).mode & 0o777,
+    0o644,
+  );
+  for (const directory of [
+    join(fixture.project, "project.xcworkspace/xcshareddata"),
+    join(fixture.project, "project.xcworkspace/xcshareddata/swiftpm"),
+    metadata,
+  ]) {
+    assert.equal(lstatSync(directory).mode & 0o777, 0o755);
+  }
 });
 
 test("fails on a missing generated setting without partial writes", (t) => {

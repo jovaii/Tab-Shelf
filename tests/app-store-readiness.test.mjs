@@ -185,7 +185,7 @@ function addGeneratedFixture(root, projectSource = generatedProject()) {
     "xcshareddata/swiftpm",
     "xcshareddata/swiftpm/configuration",
   ]) {
-    chmodSync(join(container, `${PRODUCT}.xcodeproj/project.xcworkspace`, path), 0o777);
+    chmodSync(join(container, `${PRODUCT}.xcodeproj/project.xcworkspace`, path), 0o755);
   }
   cpSync(
     join(root, "native/host/Base.lproj/Main.html"),
@@ -360,20 +360,16 @@ test("source readiness rejects remote embedded HTML resources", (t) => {
 
 test("source readiness rejects runtime network APIs", (t) => {
   const root = makeSourceFixture(t);
-  writeFileSync(
-    join(root, "extension/network.mjs"),
-    'export const request = () => fetch("https://api.example.invalid/");\n',
-  );
+  const path = join(root, "extension/background.js");
+  writeFileSync(path, `${readFileSync(path, "utf8")}\nfetch("https://api.example.invalid/");\n`);
   assert.throws(() => checkSourceReadiness({ root }), /runtime network APIs/u);
 });
 
 test("source readiness rejects indirect JavaScript networking", async (t) => {
   await t.test("module", (t) => {
     const root = makeSourceFixture(t);
-    writeFileSync(
-      join(root, "extension/network.mjs"),
-      'export const request = () => globalThis["fetch"]("https://api.example.invalid/");\n',
-    );
+    const path = join(root, "extension/background.js");
+    writeFileSync(path, `${readFileSync(path, "utf8")}\nglobalThis["fetch"]("https://api.example.invalid/");\n`);
     assert.throws(() => checkSourceReadiness({ root }), /source_network_api_found/u);
   });
   await t.test("inline HTML script", (t) => {
@@ -421,21 +417,157 @@ test("source readiness pins every shipping executable source", (t) => {
   );
   assert.throws(
     () => checkSourceReadiness({ root }),
-    /source_release_content_invalid reason=changed count=1/u,
+    /source_extension_tree_invalid reason=changed count=1/u,
   );
 });
 
+test("source readiness pins the complete approved extension tree", async (t) => {
+  for (const [name, configure, expected] of [
+    [
+      "CJS service worker",
+      (root) => {
+        writeFileSync(join(root, "extension/worker.cjs"), "globalThis.fetch('/service');\n");
+        const manifestPath = join(root, "extension/manifest.json");
+        const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+        manifest.background = { service_worker: "worker.cjs" };
+        writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+      },
+      /source_extension_tree_invalid reason=unexpected count=1/u,
+    ],
+    [
+      "Wasm asset",
+      (root) => writeFileSync(join(root, "extension/module.wasm"), Buffer.from([0, 97, 115, 109])),
+      /source_extension_tree_invalid reason=unexpected count=1/u,
+    ],
+    [
+      "XHTML entry",
+      (root) => writeFileSync(join(root, "extension/entry.xhtml"), "<html></html>\n"),
+      /source_extension_tree_invalid reason=unexpected count=1/u,
+    ],
+    [
+      "changed manifest",
+      (root) => {
+        const path = join(root, "extension/manifest.json");
+        const manifest = JSON.parse(readFileSync(path, "utf8"));
+        manifest.unapproved_key = "value";
+        writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+      },
+      /source_extension_tree_invalid reason=changed count=1/u,
+    ],
+    [
+      "added unrecognized path",
+      (root) => writeFileSync(join(root, "extension/extra.bin"), "extra\n"),
+      /source_extension_tree_invalid reason=unexpected count=1/u,
+    ],
+    [
+      "missing path",
+      (root) => rmSync(join(root, "extension/icons/icon-256.png")),
+      /source_extension_tree_invalid reason=missing count=1/u,
+    ],
+  ]) {
+    await t.test(name, (t) => {
+      const root = makeSourceFixture(t);
+      configure(root);
+      assert.throws(() => checkSourceReadiness({ root }), expected);
+    });
+  }
+});
+
+test("source extension tree rejects aliases and wrong types", async (t) => {
+  await t.test("hard-link alias", (t) => {
+    const root = makeSourceFixture(t);
+    const alias = join(root, "extension/popup.css");
+    unlinkSync(alias);
+    linkSync(join(root, "extension/settings.css"), alias);
+    assert.throws(
+      () => checkSourceReadiness({ root }),
+      /source_extension_tree_invalid reason=alias count=2/u,
+    );
+  });
+  await t.test("wrong type", (t) => {
+    const root = makeSourceFixture(t);
+    rmSync(join(root, "extension/popup.css"));
+    mkdirSync(join(root, "extension/popup.css"));
+    assert.throws(
+      () => checkSourceReadiness({ root }),
+      /source_extension_tree_invalid reason=type count=1/u,
+    );
+  });
+});
+
+test("source readiness independently pins the complete release profile shape", async (t) => {
+  for (const [name, mutate] of [
+    [
+      "profile name",
+      (path) => replace(path, 'name: "xcode-26.6-safari-converter-26.6"', 'name: "changed-profile"'),
+    ],
+    [
+      "Xcode metadata",
+      (path) => replace(path, 'version: "26.6",', 'version: "26.7",'),
+    ],
+    [
+      "generated key removal",
+      (path) => replace(
+        path,
+        '"Tab Shelf/Tab Shelf/AppDelegate.swift": file(',
+        '"Tab Shelf/Tab Shelf/UnexpectedDelegate.swift": file(',
+      ),
+    ],
+    [
+      "generated key addition",
+      (path) => replace(
+        path,
+        "const generatedFiles = Object.freeze({",
+        `const generatedFiles = Object.freeze({
+  "unexpected-profile-path": file(
+    "native/release/xcode-26.6/Tab Shelf/Tab Shelf/AppDelegate.swift",
+    "a6e56ef23838b79d59b5a86e851014f280bbdb68cda1e486329b36d56d47ce97",
+  ),`,
+      ),
+    ],
+  ]) {
+    await t.test(name, (t) => {
+      const root = makeSourceFixture(t);
+      addReadinessScripts(root);
+      mutate(join(root, "scripts/app-store-release-profile.mjs"));
+      const result = runFixtureCLI(root);
+      assert.equal(result.status, 1);
+      assert.equal(result.stderr, "source_release_profile_invalid\n");
+    });
+  }
+});
+
 test("source readiness pins shipping executable modes", async (t) => {
-  for (const path of ["extension/background.js", "native/host/Script.js"]) {
+  for (const [path, expected] of [
+    ["extension/background.js", /source_extension_tree_invalid reason=mode count=1/u],
+    ["native/host/Script.js", /source_release_content_invalid reason=mode count=1/u],
+  ]) {
     await t.test(path, (t) => {
       const root = makeSourceFixture(t);
       chmodSync(join(root, path), 0o755);
       assert.throws(
         () => checkSourceReadiness({ root }),
-        /source_release_content_invalid reason=mode count=1/u,
+        expected,
       );
     });
   }
+});
+
+test("source readiness accepts safer modes and rejects writable directories", async (t) => {
+  await t.test("safer file and directory", (t) => {
+    const root = makeSourceFixture(t);
+    chmodSync(join(root, "extension/background.js"), 0o600);
+    chmodSync(join(root, "extension/core"), 0o700);
+    assert.doesNotThrow(() => checkSourceReadiness({ root }));
+  });
+  await t.test("writable directory", (t) => {
+    const root = makeSourceFixture(t);
+    chmodSync(join(root, "extension/core"), 0o777);
+    assert.throws(
+      () => checkSourceReadiness({ root }),
+      /source_extension_tree_invalid reason=mode count=1/u,
+    );
+  });
 });
 
 test("source readiness rejects an ancestor symlink without disclosing its target", (t) => {
@@ -519,7 +651,7 @@ test("source readiness rejects prohibited product text without disclosing it", (
   const termsPath = join(dirname(root), `${PRODUCT.toLowerCase().replaceAll(" ", "-")}-terms.txt`);
   writeFileSync(termsPath, `${term}\n`);
   t.after(() => rmSync(termsPath, { force: true }));
-  writeFileSync(join(root, "extension/prohibited.txt"), `current product ${term}\n`);
+  writeFileSync(join(root, "native/host/Style.css"), `/* current product ${term} */\n`);
 
   assert.throws(
     () => checkSourceReadiness({ root, prohibitedTermsFile: termsPath }),
@@ -570,6 +702,38 @@ test("generated readiness rejects unsupported Xcode and converter profiles", asy
       /generated_profile_unsupported/u,
     );
   });
+  await t.test("converter XML comment decoy", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    const info = join(generatedRoot, PRODUCT, PRODUCT, "Info.plist");
+    replace(
+      info,
+      "<string>26.6</string>",
+      `<string>26.7</string>
+<!-- <key>SFSafariWebExtensionConverterVersion</key><string>26.6</string> -->`,
+    );
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_profile_unsupported/u,
+    );
+  });
+});
+
+test("direct generated readiness invokes the immutable source gate", (t) => {
+  const root = makeSourceFixture(t);
+  const generatedRoot = addGeneratedFixture(root);
+  const source = join(root, "extension/popup.css");
+  const generated = join(
+    generatedRoot,
+    PRODUCT,
+    `${PRODUCT} Extension/Resources/popup.css`,
+  );
+  writeFileSync(source, `${readFileSync(source, "utf8")}\n.unapproved { color: red; }\n`);
+  cpSync(source, generated);
+  assert.throws(
+    () => checkGeneratedReadiness({ root, generatedRoot }),
+    /source_extension_tree_invalid reason=changed count=1/u,
+  );
 });
 
 test("generated readiness rejects target-specific identifier and entitlement drift", async (t) => {
@@ -865,7 +1029,7 @@ test("generated readiness compares approved file modes", async (t) => {
     [`${PRODUCT} Extension/Resources/background.js`, 0o755],
     [`${PRODUCT}/Resources/Script.js`, 0o755],
     [`${PRODUCT}/AppDelegate.swift`, 0o755],
-    [`${PRODUCT}.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration`, 0o755],
+    [`${PRODUCT}.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration`, 0o777],
   ]) {
     await t.test(relativePath, (t) => {
       const root = makeSourceFixture(t);
@@ -877,6 +1041,25 @@ test("generated readiness compares approved file modes", async (t) => {
       );
     });
   }
+});
+
+test("generated readiness accepts safer modes and rejects writable directories", async (t) => {
+  await t.test("safer file and directory", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    chmodSync(join(generatedRoot, PRODUCT, `${PRODUCT} Extension/Resources/background.js`), 0o600);
+    chmodSync(join(generatedRoot, PRODUCT, `${PRODUCT} Extension/Resources/core`), 0o700);
+    assert.doesNotThrow(() => checkGeneratedReadiness({ root, generatedRoot }));
+  });
+  await t.test("writable directory", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    chmodSync(join(generatedRoot, PRODUCT, `${PRODUCT} Extension/Resources/core`), 0o777);
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_resource_tree_invalid reason=mode count=1/u,
+    );
+  });
 });
 
 test("generated readiness rejects unexpected native product source", (t) => {
