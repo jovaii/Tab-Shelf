@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="../Style.css">
+  <script src="../Script.js" defer></script>
+  <title>Tab Shelf</title>
+</head>
+<body>
+  <main>
+    <header class="product-header">
+      <img class="app-icon" src="../Icon.png" width="96" height="96" alt="">
+      <p class="eyebrow">By Jovaii</p>
+      <h1>Tab Shelf</h1>
+      <p class="lede">A calm, visual shelf for the Safari tabs open on this Mac.</p>
+    </header>
+
+    <section class="status" aria-live="polite" aria-atomic="true" aria-labelledby="status-title">
+      <div class="shelf-rail" aria-hidden="true"></div>
+      <div class="status-copy">
+        <span class="status-dot" aria-hidden="true"></span>
+        <strong id="status-title">Checking Safari extension…</strong>
+        <span id="status-detail">Tab Shelf will show its current Safari status here.</span>
+      </div>
+    </section>
+
+    <section class="setup" aria-labelledby="setup-title">
+      <h2 id="setup-title">Set up Tab Shelf</h2>
+      <ol>
+        <li>Open Safari Settings.</li>
+        <li>Choose Extensions and enable Tab Shelf.</li>
+        <li>Open a new Safari tab.</li>
+      </ol>
+      <button id="open-preferences" class="primary-action" type="button">Open Safari Settings</button>
+    </section>
+
+    <p class="privacy">Your Safari tabs stay on this Mac.</p>
+    <nav aria-label="Tab Shelf information">
+      <button data-action="open-privacy" type="button">Privacy</button>
+      <button data-action="open-support" type="button">Support</button>
+      <button data-action="open-source" type="button">Source</button>
+    </nav>
+    <p class="version">Version 1.0.0</p>
+  </main>
+</body>
+</html>
