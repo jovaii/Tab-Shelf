@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Tab Shelf</title>
+    <link rel="stylesheet" href="shared/tokens.css">
+    <link rel="stylesheet" href="shelf.css">
+  </head>
+  <body>
+    <div class="background-image" aria-hidden="true"></div>
+    <main class="shelf-app" aria-labelledby="greeting">
+      <header class="shelf-header">
+        <div class="shelf-header__copy">
+          <p class="product-kicker">Your browsing desk</p>
+          <h1 id="greeting">Good morning</h1>
+          <p id="current-date" class="current-date">Monday, August 24, 2026</p>
+        </div>
+        <button id="settings-button" class="settings-button" type="button">
+          <span class="settings-button__glyph" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+          <span class="visually-hidden">Open theme settings</span>
+        </button>
+      </header>
+
+      <div class="shelf-rule" aria-hidden="true"><span></span></div>
+
+      <section class="inventory" aria-labelledby="inventory-title">
+        <div class="inventory-bar">
+          <div class="inventory-bar__title">
+            <h2 id="inventory-title">Open tabs</h2>
+            <span class="inventory-bar__rail" aria-hidden="true"></span>
+          </div>
+          <div class="inventory-bar__actions">
+            <span id="domain-count" class="inventory-stat">0 domains</span>
+            <span class="inventory-stat__separator" aria-hidden="true"></span>
+            <span id="duplicate-count" class="inventory-stat">No duplicates</span>
+            <button id="close-extra-shelves" class="primary-action" type="button" hidden>
+              Close extra shelves
+            </button>
+          </div>
+        </div>
+
+        <p id="status" role="status" aria-live="polite" class="status-message"></p>
+        <div id="card-grid" class="card-grid"></div>
+      </section>
+
+      <footer class="shelf-footer">
+        <div class="open-total">
+          <strong id="open-count">0</strong>
+          <span>Open tabs</span>
+        </div>
+        <p class="product-credit">Tab Shelf by James Li</p>
+      </footer>
+    </main>
+    <script type="module" src="shelf.mjs"></script>
+  </body>
+</html>
