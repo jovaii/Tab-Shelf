@@ -46,6 +46,7 @@ Because the initial product has no bundled third-party code, fonts, images, or p
 - No Chrome support, Chrome build, Chrome test, or Chrome runtime path.
 - Local ad-hoc signing is sufficient for the first personal release.
 - Developer ID signing and notarization are optional later release work and are not required for the first independent build.
+- The current Mac has Apple Command Line Tools but not full Xcode. Core development and Safari temporary installation proceed first; Apple-supported macOS App packaging is the final step and requires full Xcode to supply `safari-web-extension-packager` and `xcodebuild`.
 
 ## Version 1 Functional Scope
 
