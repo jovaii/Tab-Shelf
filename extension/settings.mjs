@@ -17,6 +17,7 @@ const PRESET_META = Object.freeze({
   "mist-teal": { name: "Mist Teal", note: "Coastal depth" },
   "ice-lavender": { name: "Ice Lavender", note: "Cool, airy color" },
   "neon-bloom": { name: "Neon Bloom", note: "Dark with magenta light" },
+  "storm-horizon": { name: "Storm Horizon", note: "Navy sky, coral horizon" },
 });
 
 const controls = Object.freeze({

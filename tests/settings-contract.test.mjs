@@ -66,6 +66,10 @@ test("settings code is local-only and never injects imported markup", () => {
   assert.doesNotMatch(javascript, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/iu);
   assert.match(javascript, /tab-shelf-preferences-v1\.json/);
   assert.match(javascript, /MAX_BACKGROUND_IMAGE_BYTES/);
+  assert.match(
+    javascript,
+    /"storm-horizon": \{ name: "Storm Horizon", note: "Navy sky, coral horizon" \}/u,
+  );
 });
 
 test("settings styles preserve readable controls and a responsive preview", () => {
