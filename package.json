@@ -1,0 +1,20 @@
+{
+  "name": "tab-shelf",
+  "version": "1.0.0",
+  "description": "A private visual shelf for Safari tabs on the current Mac.",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "audit": "node scripts/audit-repository.mjs",
+    "check": "npm test && npm run audit",
+    "preview": "node scripts/serve-preview.mjs --host 127.0.0.1 --port 4173",
+    "render:preview": "SWIFT_MODULECACHE_PATH=/private/tmp/tab-shelf-swift-cache CLANG_MODULE_CACHE_PATH=/private/tmp/tab-shelf-swift-cache swift scripts/render-preview.swift 'http://127.0.0.1:4173/shelf.html?preview=1' build/screenshots",
+    "package:macos": "bash scripts/package-macos.sh",
+    "install:macos": "bash scripts/install-macos.sh"
+  }
+}

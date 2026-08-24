@@ -1,0 +1,6 @@
+.DS_Store
+.worktrees/
+build/
+dist/
+native/generated/
+artifacts/qa/
