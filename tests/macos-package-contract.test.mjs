@@ -63,6 +63,11 @@ test("package does not register the build-directory app with Launch Services", (
   const script = source("scripts/package-macos.sh");
 
   assert.match(script, /REGISTER_WITH_LAUNCH_SERVICES=NO/u);
+  assert.match(
+    script,
+    /LaunchServices\.framework\/Versions\/Current\/Support\/lsregister" -u "\$BUILT_APP"/u,
+  );
+  assert.ok(script.indexOf('lsregister" -u "$BUILT_APP"') < script.indexOf('ditto "$BUILT_APP"'));
 });
 
 test("package synchronizes the containing app with the final extension identifier", () => {

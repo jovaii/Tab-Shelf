@@ -138,6 +138,7 @@ DEVELOPER_DIR="$DEVELOPER_DIR_PATH" xcrun xcodebuild \
   build
 
 BUILT_APP="$(single_built_app)"
+"/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister" -u "$BUILT_APP"
 /usr/bin/ditto "$BUILT_APP" "$OUTPUT_APP"
 
 LEGAL_DIRECTORY="$OUTPUT_APP/Contents/Resources/Legal"
