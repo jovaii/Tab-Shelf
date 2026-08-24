@@ -1,4 +1,9 @@
 import { element } from "./dom.mjs";
+import {
+  applySiteAccent,
+  extractAccentFromImage,
+  fallbackAccentForDomain,
+} from "./site-accent.mjs";
 
 function requireModel(model) {
   if (!model || typeof model !== "object" || !Array.isArray(model.groups)) {
@@ -35,6 +40,7 @@ export function buildShelfTree(model) {
         role: "site-card",
         key: group.key,
         label: group.label,
+        accent: fallbackAccentForDomain(group.key),
         tabIds: Object.freeze(tabs.map((tab) => tab.id)),
         children: Object.freeze([
           Object.freeze({ role: "site-card-header", tabCount: tabs.length }),
@@ -61,7 +67,7 @@ function markerText(label) {
   return (value[0] ?? "•").toLocaleUpperCase("en-US");
 }
 
-function renderTab(document, tab, callbacks) {
+function renderTab(document, tab, callbacks, onFavicon) {
   const marker = tab.favIconUrl
     ? element(document, "img", {
         className: "tab-row__favicon",
@@ -79,6 +85,8 @@ function renderTab(document, tab, callbacks) {
         text: markerText(tab.title),
         attributes: { "aria-hidden": "true" },
       });
+
+  if (marker.tagName?.toLowerCase() === "img") onFavicon?.(marker);
 
   const title = element(document, "bdi", {
     className: "tab-row__title",
@@ -150,9 +158,15 @@ function renderCard(document, card, callbacks) {
     ],
   });
   const tabSection = card.children.find((child) => child.role === "site-card-tabs");
+  const faviconImages = [];
   const tabs = element(document, "ul", {
     className: "site-card__tabs",
-    children: tabSection.children.map((tab) => renderTab(document, tab, callbacks)),
+    children: tabSection.children.map((tab) => renderTab(
+      document,
+      tab,
+      callbacks,
+      (image) => faviconImages.push(image),
+    )),
   });
   const footer = element(document, "footer", {
     className: "site-card__footer",
@@ -165,11 +179,22 @@ function renderCard(document, card, callbacks) {
     })],
   });
 
-  return element(document, "article", {
+  const article = element(document, "article", {
     className: "site-card",
     attributes: { "aria-labelledby": `site-${card.key}` },
     children: [header, tabs, footer],
   });
+  applySiteAccent(article, card.accent);
+
+  const favicon = faviconImages[0];
+  if (favicon) {
+    const updateAccent = () => {
+      applySiteAccent(article, extractAccentFromImage(favicon, card.accent));
+    };
+    favicon.addEventListener("load", updateAccent, { once: true });
+    if (favicon.complete && favicon.naturalWidth > 0) updateAccent();
+  }
+  return article;
 }
 
 export function renderShelf(document, root, model, callbacks) {

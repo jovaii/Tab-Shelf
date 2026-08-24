@@ -57,10 +57,10 @@
 
   /* System-only typography. */
   --font-display: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
-  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --font-body: "Avenir Next", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   --text-display: clamp(2rem, 4vw, 3rem);
   --text-title: 1.375rem;
-  --text-heading: 1.0625rem;
+  --text-heading: 1rem;
   --text-body: 0.9375rem;
   --text-body-small: 0.875rem;
   --text-metadata: 0.75rem;

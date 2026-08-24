@@ -18,6 +18,10 @@ class FakeNode {
     this.className = "";
     this.textContent = "";
     this.disabled = false;
+    this.style = {
+      properties: new Map(),
+      setProperty: (name, value) => this.style.properties.set(name, value),
+    };
   }
 
   append(...children) {
@@ -38,6 +42,10 @@ class FakeNode {
 
   click() {
     this.listeners.get("click")?.({ preventDefault() {} });
+  }
+
+  dispatch(name) {
+    this.listeners.get(name)?.({ currentTarget: this, target: this });
   }
 }
 
@@ -117,6 +125,13 @@ test("keeps full titles as text and exposes duplicate state", () => {
   assert.equal(firstTab.id, 1);
 });
 
+test("gives every card a stable domain accent in the render model", () => {
+  const tree = buildShelfTree(sampleModel);
+
+  for (const card of tree.children) assert.match(card.accent, /^#[0-9a-f]{6}$/u);
+  assert.notEqual(tree.children[0].accent, tree.children[1].accent);
+});
+
 test("renders safe DOM and emits typed actions", () => {
   const root = new FakeNode("div");
   const actions = [];
@@ -148,6 +163,42 @@ test("renders safe DOM and emits typed actions", () => {
     ["close", 1],
     ["close-group", [1, 2]],
   ]);
+});
+
+test("applies domain accents immediately and upgrades from the first usable favicon", () => {
+  const root = new FakeNode("div");
+  renderShelf(fakeDocument, root, sampleModel, {
+    onActivate() {},
+    onClose() {},
+    onCloseGroup() {},
+  });
+
+  const cards = walk(root).filter((node) => node.className === "site-card");
+  assert.equal(cards.length, 2);
+  assert.notEqual(
+    cards[0].style.properties.get("--site-accent"),
+    cards[1].style.properties.get("--site-accent"),
+  );
+
+  const initialAccent = cards[0].style.properties.get("--site-accent");
+  const favicon = walk(cards[0]).find((node) => node.className === "tab-row__favicon");
+  favicon.ownerDocument = {
+    createElement() {
+      return {
+        getContext() {
+          return {
+            drawImage() {},
+            getImageData() {
+              return { data: new Uint8ClampedArray([219, 50, 112, 255]) };
+            },
+          };
+        },
+      };
+    },
+  };
+  favicon.dispatch("load");
+
+  assert.notEqual(cards[0].style.properties.get("--site-accent"), initialAccent);
 });
 
 test("DOM helper rejects HTML and event attributes", () => {

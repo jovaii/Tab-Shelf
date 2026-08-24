@@ -16,6 +16,8 @@ The deterministic local WebKit run passed at 1440 × 900 and 900 × 900. Each vi
 
 The repository contract tests also verify the Safari-only browser API, minimal `tabs` and `storage` permissions, local-only settings, four authored themes, safe preference import, and independent PNG artwork.
 
+The visual contract additionally verifies domain-specific card accents, privacy-safe favicon sampling with deterministic fallback colors, and the approved multilingual typography stack.
+
 ## Repeat the local WebKit run
 
 From the repository root, start the loopback-only preview server:
@@ -55,6 +57,7 @@ Use disposable test tabs for close actions. Do not test closing against tabs con
 | --- | --- | --- |
 | New tab replacement | A new Safari tab opens the Tab Shelf page | Pending in the current Safari profile |
 | Real tab grouping | Ordinary HTTP(S) tabs appear once under their domain | Pending in the current Safari profile |
+| Domain accents | Cards are visually distinct; readable favicons may refine their stable fallback colors | Pending in the current Safari profile |
 | Activate tab | Selecting a title focuses its Safari window and tab | Pending in the current Safari profile |
 | Close one | The selected disposable tab closes and the count updates | Pending in the current Safari profile |
 | Close a domain | All disposable tabs in that domain close | Pending in the current Safari profile |
@@ -70,4 +73,4 @@ Use disposable test tabs for close actions. Do not test closing against tabs con
 
 ## Release boundary
 
-Automated WebKit acceptance is complete. Real Safari profile actions remain an explicit manual confirmation because they can focus or close the user's real tabs. Official `.app` packaging remains unavailable until the full Xcode application provides Apple's Safari Web Extension packager.
+Automated WebKit acceptance is complete. Real Safari profile actions remain an explicit manual confirmation because they can focus or close the user's real tabs. Full Xcode 26.6 is available on this Mac and the official local `.app` packaging flow is operational; the current build remains ad-hoc signed for personal use rather than Developer ID signed and notarized for distribution.
