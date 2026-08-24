@@ -1,6 +1,8 @@
 #!/bin/bash
 
 set -euo pipefail
+umask 077
+PATH="${PATH:+$PATH:}/usr/libexec"
 
 fail() {
   printf 'Tab Shelf App Store archive stopped: %s\n' "$1" >&2
@@ -11,16 +13,20 @@ SCRIPT_DIRECTORY="$(dirname -- "${BASH_SOURCE[0]}")" \
   || fail "Unable to resolve the script directory."
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIRECTORY/.." && pwd -P)" \
   || fail "Unable to resolve the repository root."
-XCODE_APP="/Applications/Xcode.app"
-DEVELOPER_DIR_PATH="/Applications/Xcode.app/Contents/Developer"
+XCODE_APP="${TAB_SHELF_XCODE_APP:-/Applications/Xcode.app}"
+DEVELOPER_DIR_PATH="${TAB_SHELF_DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 GENERATED_ROOT="$PROJECT_ROOT/native/generated"
 BUILD_ROOT="$PROJECT_ROOT/build"
 ARCHIVE_ROOT="$BUILD_ROOT/app-store"
 ARCHIVE_PATH="$ARCHIVE_ROOT/Tab Shelf.xcarchive"
+ARCHIVE_LOCK="$ARCHIVE_ROOT/.tab-shelf-archive.lock"
 EXPECTED_APP_IDENTIFIER="com.jovaii.tabshelf"
 EXPECTED_EXTENSION_IDENTIFIER="com.jovaii.tabshelf.extension"
 EXPECTED_VERSION="1.0.0"
 EXPECTED_BUILD="1"
+LOCK_OWNED=0
+LOCK_IDENTITY=""
+ARCHIVE_PARENT_IDENTITY=""
 
 require_inside_repository() {
   local candidate="$1"
@@ -52,25 +58,100 @@ require_safe_file() {
   require_safe_directory "$parent"
   [ -f "$candidate" ] || fail "A required file is missing."
   [ ! -L "$candidate" ] || fail "A required file must not be a symbolic link."
-  link_count="$(/usr/bin/stat -f '%l' "$candidate")" \
+  link_count="$(stat -f '%l' "$candidate")" \
     || fail "Unable to inspect a required file."
   [[ "$link_count" =~ ^[0-9]+$ ]] \
     || fail "Unable to inspect a required file."
   [ "$link_count" -eq 1 ] || fail "A required file must not be a hard link."
 }
 
+directory_identity() {
+  local candidate="$1" identity
+  require_safe_directory "$candidate"
+  identity="$(stat -f '%d:%i:%HT' "$candidate")" \
+    || fail "Unable to inspect a required directory."
+  [[ "$identity" =~ ^[0-9]+:[0-9]+:Directory$ ]] \
+    || fail "Unable to inspect a required directory."
+  printf '%s\n' "$identity"
+}
+
+require_same_directory() {
+  local candidate="$1" expected="$2" current
+  current="$(directory_identity "$candidate")" \
+    || fail "Unable to revalidate a required directory."
+  [ "$current" = "$expected" ] \
+    || fail "A required directory changed during archiving."
+}
+
+ensure_safe_child_directory() {
+  local parent="$1" candidate="$2" actual_parent
+  require_safe_directory "$parent"
+  actual_parent="$(dirname -- "$candidate")" \
+    || fail "Unable to verify an archive directory."
+  [ "$actual_parent" = "$parent" ] \
+    || fail "An archive directory is outside its validated parent."
+  if [ ! -e "$candidate" ] && [ ! -L "$candidate" ]; then
+    mkdir -m 700 "$candidate" || fail "Unable to create the local archive directory."
+  fi
+  require_safe_directory "$candidate"
+}
+
 require_plist_value() {
   local plist="$1" key="$2" expected="$3" actual
   require_safe_file "$plist"
-  actual="$(/usr/libexec/PlistBuddy -c "Print :$key" "$plist" 2>/dev/null)" \
+  actual="$(PlistBuddy -c "Print :$key" "$plist" 2>/dev/null)" \
     || fail "Archive identity verification failed."
   [ "$actual" = "$expected" ] \
     || fail "Archive identity verification failed."
 }
 
 count_generated_projects() {
-  /usr/bin/find "$GENERATED_ROOT" -type d -name '*.xcodeproj' -prune -print \
-    | /usr/bin/awk 'END { print NR }'
+  find "$GENERATED_ROOT" -type d -name '*.xcodeproj' -prune -print \
+    | awk 'END { print NR }'
+}
+
+require_single_bundle() {
+  local parent="$1" suffix="$2" expected="$3" candidate
+  local -a matches=()
+  require_safe_directory "$parent"
+  shopt -s nullglob
+  for candidate in "$parent"/*"$suffix"; do
+    [ -d "$candidate" ] && [ ! -L "$candidate" ] \
+      || fail "Archive bundle verification failed."
+    require_safe_directory "$candidate"
+    matches+=("$candidate")
+  done
+  shopt -u nullglob
+  [ "${#matches[@]}" -eq 1 ] \
+    || fail "Archive bundle verification failed."
+  [ "${matches[0]}" = "$expected" ] \
+    || fail "Archive bundle verification failed."
+  printf '%s\n' "${matches[0]}"
+}
+
+release_archive_lock() {
+  local current
+  [ "$LOCK_OWNED" -eq 1 ] || return 0
+  [ -n "$LOCK_IDENTITY" ] || return 0
+  [ -d "$ARCHIVE_LOCK" ] && [ ! -L "$ARCHIVE_LOCK" ] || return 0
+  current="$(stat -f '%d:%i:%HT' "$ARCHIVE_LOCK" 2>/dev/null)" || return 0
+  [ "$current" = "$LOCK_IDENTITY" ] || return 0
+  rmdir "$ARCHIVE_LOCK" >/dev/null 2>&1 || return 0
+  LOCK_OWNED=0
+}
+
+acquire_archive_lock() {
+  [ ! -e "$ARCHIVE_LOCK" ] && [ ! -L "$ARCHIVE_LOCK" ] \
+    || fail "Another local archive operation is already active."
+  mkdir -m 700 "$ARCHIVE_LOCK" \
+    || fail "Another local archive operation is already active."
+  LOCK_IDENTITY="$(directory_identity "$ARCHIVE_LOCK")" \
+    || fail "Unable to verify the local archive lock."
+  LOCK_OWNED=1
+  trap release_archive_lock EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
 }
 
 APPLE_TEAM_ID="${APPLE_TEAM_ID:-}"
@@ -81,15 +162,15 @@ APPLE_TEAM_ID="${APPLE_TEAM_ID:-}"
   || fail "Full Xcode is required. Install Xcode and complete its first-launch setup."
 [ -d "$DEVELOPER_DIR_PATH" ] \
   || fail "Full Xcode is incomplete. Complete its first-launch setup."
-DEVELOPER_DIR="$DEVELOPER_DIR_PATH" /usr/bin/xcrun --find xcodebuild >/dev/null 2>&1 \
+DEVELOPER_DIR="$DEVELOPER_DIR_PATH" xcrun --find xcodebuild >/dev/null 2>&1 \
   || fail "Full Xcode does not provide xcodebuild."
-XCODE_VERSION="$(DEVELOPER_DIR="$DEVELOPER_DIR_PATH" /usr/bin/xcodebuild -version 2>/dev/null)" \
+XCODE_VERSION="$(DEVELOPER_DIR="$DEVELOPER_DIR_PATH" xcodebuild -version 2>/dev/null)" \
   || fail "Unable to verify the installed Xcode version."
 [ "$XCODE_VERSION" = $'Xcode 26.6\nBuild version 17F113' ] \
   || fail "This archive workflow requires Xcode 26.6 build 17F113."
 
 require_safe_directory "$PROJECT_ROOT"
-require_safe_directory "$BUILD_ROOT"
+ensure_safe_child_directory "$PROJECT_ROOT" "$BUILD_ROOT"
 require_safe_directory "$GENERATED_ROOT"
 XCODE_PROJECT="$GENERATED_ROOT/Tab Shelf/Tab Shelf.xcodeproj"
 require_safe_directory "$XCODE_PROJECT"
@@ -99,22 +180,21 @@ PROJECT_COUNT="$(count_generated_projects)" \
 [ "$PROJECT_COUNT" = "1" ] \
   || fail "Expected exactly one generated Xcode project."
 
-if [ -e "$ARCHIVE_ROOT" ] || [ -L "$ARCHIVE_ROOT" ]; then
-  require_safe_directory "$ARCHIVE_ROOT"
-fi
-[ ! -e "$ARCHIVE_PATH" ] && [ ! -L "$ARCHIVE_PATH" ] \
-  || fail "The local archive already exists. Move it aside before archiving again."
-
 npm run check:app-store
 
-if [ ! -e "$ARCHIVE_ROOT" ] && [ ! -L "$ARCHIVE_ROOT" ]; then
-  mkdir "$ARCHIVE_ROOT" || fail "Unable to create the local archive directory."
-fi
-require_safe_directory "$ARCHIVE_ROOT"
+ensure_safe_child_directory "$BUILD_ROOT" "$ARCHIVE_ROOT"
+ARCHIVE_PARENT_IDENTITY="$(directory_identity "$ARCHIVE_ROOT")" \
+  || fail "Unable to verify the local archive directory."
+[ ! -e "$ARCHIVE_PATH" ] && [ ! -L "$ARCHIVE_PATH" ] \
+  || fail "The local archive already exists. Move it aside before archiving again."
+acquire_archive_lock
+require_same_directory "$ARCHIVE_ROOT" "$ARCHIVE_PARENT_IDENTITY"
+require_same_directory "$ARCHIVE_LOCK" "$LOCK_IDENTITY"
 [ ! -e "$ARCHIVE_PATH" ] && [ ! -L "$ARCHIVE_PATH" ] \
   || fail "The local archive already exists. Move it aside before archiving again."
 
-if ! DEVELOPER_DIR="$DEVELOPER_DIR_PATH" /usr/bin/xcodebuild \
+# Shell-level identity checks narrow races; a same-user filesystem adversary can still race after this revalidation.
+if DEVELOPER_DIR="$DEVELOPER_DIR_PATH" xcodebuild \
   -project "$XCODE_PROJECT" \
   -scheme "Tab Shelf" \
   -configuration Release \
@@ -123,18 +203,23 @@ if ! DEVELOPER_DIR="$DEVELOPER_DIR_PATH" /usr/bin/xcodebuild \
   DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
   CODE_SIGN_STYLE=Automatic \
   archive >/dev/null 2>&1; then
-  fail "Xcode could not create the local archive. Review signing in Xcode and try again."
+  :
+else
+  XCODE_STATUS=$?
+  printf 'Tab Shelf App Store archive stopped: Xcode could not create the local archive.\n' >&2
+  exit "$XCODE_STATUS"
 fi
 
 ARCHIVE_INFO="$ARCHIVE_PATH/Info.plist"
-ARCHIVED_APP="$ARCHIVE_PATH/Products/Applications/Tab Shelf.app"
-ARCHIVED_EXTENSION="$ARCHIVED_APP/Contents/PlugIns/Tab Shelf Extension.appex"
+ARCHIVE_APPLICATIONS="$ARCHIVE_PATH/Products/Applications"
 require_safe_directory "$ARCHIVE_PATH"
-require_safe_directory "$ARCHIVED_APP"
-require_safe_directory "$ARCHIVED_EXTENSION"
 require_plist_value "$ARCHIVE_INFO" "ApplicationProperties:CFBundleIdentifier" "$EXPECTED_APP_IDENTIFIER"
 require_plist_value "$ARCHIVE_INFO" "ApplicationProperties:CFBundleShortVersionString" "$EXPECTED_VERSION"
 require_plist_value "$ARCHIVE_INFO" "ApplicationProperties:CFBundleVersion" "$EXPECTED_BUILD"
+ARCHIVED_APP="$(require_single_bundle "$ARCHIVE_APPLICATIONS" '.app' "$ARCHIVE_APPLICATIONS/Tab Shelf.app")" \
+  || fail "Archive bundle verification failed."
+ARCHIVED_EXTENSION="$(require_single_bundle "$ARCHIVED_APP/Contents/PlugIns" '.appex' "$ARCHIVED_APP/Contents/PlugIns/Tab Shelf Extension.appex")" \
+  || fail "Archive bundle verification failed."
 require_plist_value "$ARCHIVED_APP/Contents/Info.plist" "CFBundleIdentifier" "$EXPECTED_APP_IDENTIFIER"
 require_plist_value "$ARCHIVED_APP/Contents/Info.plist" "CFBundleShortVersionString" "$EXPECTED_VERSION"
 require_plist_value "$ARCHIVED_APP/Contents/Info.plist" "CFBundleVersion" "$EXPECTED_BUILD"
