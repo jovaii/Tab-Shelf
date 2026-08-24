@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -21,25 +22,37 @@ function source(path) {
 
 test("archive path signs for the enrolled team but never uploads", () => {
   const script = source("scripts/archive-app-store.sh");
+  const workflow = source("scripts/archive-app-store-workflow.sh");
 
   assert.match(script, /set -euo pipefail/u);
   assert.match(script, /APPLE_TEAM_ID/u);
   assert.match(script, /\^\[A-Z0-9\]\{10\}\$/u);
-  assert.match(script, /npm run check:app-store/u);
-  assert.match(script, /xcodebuild/u);
-  assert.match(script, /-configuration Release/u);
-  assert.match(script, /-destination generic\/platform=macOS/u);
-  assert.match(script, /-archivePath/u);
-  assert.match(script, /CODE_SIGN_STYLE=Automatic/u);
-  assert.match(script, /DEVELOPMENT_TEAM="\$APPLE_TEAM_ID"/u);
-  assert.match(script, /Xcode 26\.6/u);
-  assert.match(script, /Build version 17F113/u);
+  assert.match(script, /PATH="\/usr\/local\/bin:\/opt\/homebrew\/bin:\/usr\/bin:\/bin:\/usr\/sbin:\/sbin:\/usr\/libexec"/u);
+  assert.match(script, /XCODE_APP="\/Applications\/Xcode\.app"/u);
+  assert.match(script, /DEVELOPER_DIR_PATH="\/Applications\/Xcode\.app\/Contents\/Developer"/u);
+  assert.doesNotMatch(script, /TAB_SHELF_XCODE|TAB_SHELF_DEVELOPER/u);
+  assert.match(script, /\/usr\/bin\/xcrun/u);
+  assert.match(script, /\/usr\/bin\/xcodebuild/u);
+  assert.match(script, /\/usr\/bin\/stat/u);
+  assert.match(script, /\/usr\/bin\/find/u);
+  assert.match(script, /\/usr\/bin\/awk/u);
+  assert.match(script, /\/usr\/libexec\/PlistBuddy/u);
+  assert.match(script, /\/bin\/mkdir/u);
+  assert.match(script, /\/bin\/rmdir/u);
+  assert.match(workflow, /check-app-store-readiness\.mjs/u);
+  assert.match(workflow, /-configuration Release/u);
+  assert.match(workflow, /-destination generic\/platform=macOS/u);
+  assert.match(workflow, /-archivePath/u);
+  assert.match(workflow, /CODE_SIGN_STYLE=Automatic/u);
+  assert.match(workflow, /DEVELOPMENT_TEAM="\$archive_team_id"/u);
+  assert.match(workflow, /Xcode 26\.6/u);
+  assert.match(workflow, /Build version 17F113/u);
   assert.doesNotMatch(script, /notarytool|altool|upload|exportArchive|rm\s+-[a-z]*r/iu);
   assert.doesNotMatch(script, /^\s*open\s/mu);
 });
 
 test("archive contract verifies the sealed archive identity without replacing an archive", () => {
-  const script = source("scripts/archive-app-store.sh");
+  const script = source("scripts/archive-app-store-workflow.sh");
 
   assert.match(script, /Tab Shelf\.xcarchive/u);
   assert.match(script, /already exists/u);
@@ -71,12 +84,18 @@ function fakeTooling(root) {
   const bin = join(root, "fake-bin");
   const log = join(root, "tool.log");
   mkdirSync(bin, { recursive: true });
-  write(join(bin, "npm"), `#!/bin/bash
-printf 'npm\\n' >> "$TAB_SHELF_TEST_LOG"
+  const xcodeArgv = join(root, "xcodebuild-argv.bin");
+  write(join(bin, "node"), `#!/bin/bash
+printf 'node\\n' >> "$TAB_SHELF_TEST_LOG"
+[ -z "\${APPLE_TEAM_ID+x}" ] || exit 94
+[ "$1" = "$TAB_SHELF_TEST_ROOT/scripts/check-app-store-readiness.mjs" ] || exit 95
+[ "$2" = "--generated" ] || exit 95
+[ "$3" = "native/generated" ] || exit 95
 exit 0
 `, 0o755);
   write(join(bin, "xcrun"), `#!/bin/bash
 printf 'xcrun\\n' >> "$TAB_SHELF_TEST_LOG"
+[ -z "\${APPLE_TEAM_ID+x}" ] || exit 94
 exit 0
 `, 0o755);
   write(join(bin, "mkdir"), `#!/bin/bash
@@ -94,6 +113,7 @@ fi
 exec /bin/mkdir "$@"
 `, 0o755);
   write(join(bin, "xcodebuild"), `#!/bin/bash
+[ -z "\${APPLE_TEAM_ID+x}" ] || exit 94
 if [ "$1" = "-version" ]; then
   printf 'Xcode 26.6\\nBuild version 17F113\\n'
   exit 0
@@ -106,6 +126,7 @@ for expected in " -scheme Tab Shelf " " -configuration Release " " -destination 
   esac
 done
 printf 'xcodebuild\\n' >> "$TAB_SHELF_TEST_LOG"
+printf '%s\\0' "$@" > "$TAB_SHELF_TEST_XCODE_ARGV"
 if [ "\${TAB_SHELF_XCODE_STATUS:-0}" != "0" ]; then
   printf 'TOP_SECRET_TEAM=ABCDEFGHIJ /private/unsafe/path\\n' >&2
   exit "$TAB_SHELF_XCODE_STATUS"
@@ -163,13 +184,14 @@ fi
 key="\${2#Print :}"
 /usr/bin/awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2); found = 1 } END { exit found ? 0 : 1 }' "$3"
 `, 0o755);
-  return { bin, log };
+  return { bin, log, xcodeArgv };
 }
 
 function makeArchiveFixture(t) {
-  const root = mkdtempSync(join(tmpdir(), "tab-shelf-archive-"));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "tab-shelf-archive-")));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   cpSync("scripts/archive-app-store.sh", join(root, "scripts/archive-app-store.sh"));
+  cpSync("scripts/archive-app-store-workflow.sh", join(root, "scripts/archive-app-store-workflow.sh"));
   write(join(root, "native/generated/Tab Shelf/Tab Shelf.xcodeproj/project.pbxproj"), "prepared project\n");
   const xcodeApp = join(root, "Fake Xcode.app");
   const developerDir = join(xcodeApp, "Contents/Developer");
@@ -185,22 +207,52 @@ function makeArchiveFixture(t) {
   };
 }
 
+function workflowArguments(fixture) {
+  return [
+    fixture.root,
+    "ABCDEFGHIJ",
+    fixture.xcodeApp,
+    fixture.developerDir,
+    join(fixture.bin, "node"),
+    join(fixture.bin, "xcrun"),
+    join(fixture.bin, "xcodebuild"),
+    "/usr/bin/stat",
+    "/usr/bin/find",
+    "/usr/bin/awk",
+    join(fixture.bin, "PlistBuddy"),
+    join(fixture.bin, "mkdir"),
+    "/bin/rmdir",
+    "/usr/bin/dirname",
+  ];
+}
+
 function runArchive(fixture, overrides = {}) {
-  return spawnSync("bash", ["scripts/archive-app-store.sh"], {
+  return spawnSync("/bin/bash", [
+    "-c",
+    'source "$1"; shift; archive_app_store_workflow "$@"',
+    "archive-workflow",
+    join(fixture.root, "scripts/archive-app-store-workflow.sh"),
+    ...workflowArguments(fixture),
+  ], {
     cwd: fixture.root,
     encoding: "utf8",
     env: {
       ...process.env,
       PATH: `${fixture.bin}:${process.env.PATH}`,
-      APPLE_TEAM_ID: "ABCDEFGHIJ",
-      TAB_SHELF_XCODE_APP: fixture.xcodeApp,
-      TAB_SHELF_DEVELOPER_DIR: fixture.developerDir,
       TAB_SHELF_TEST_ROOT: fixture.root,
       TAB_SHELF_TEST_LOG: fixture.log,
+      TAB_SHELF_TEST_XCODE_ARGV: fixture.xcodeArgv,
       TAB_SHELF_TEST_ARCHIVE_PATH: fixture.archivePath,
       ...overrides,
     },
   });
+}
+
+function xcodeArguments(fixture) {
+  const bytes = readFileSync(fixture.xcodeArgv);
+  const values = bytes.toString("utf8").split("\0");
+  assert.equal(values.pop(), "");
+  return values;
 }
 
 function calls(fixture) {
@@ -216,12 +268,41 @@ test("archive behavior creates a clean build parent and verifies one sealed bund
   const fixture = makeArchiveFixture(t);
   const result = runArchive(fixture);
 
-  assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(calls(fixture), ["xcrun", "npm", "xcodebuild"]);
+  assert.equal(result.status, 0, `${result.stderr}\n${calls(fixture).join(",")}`);
+  assert.deepEqual(calls(fixture), ["xcrun", "node", "xcodebuild"]);
+  assert.deepEqual(xcodeArguments(fixture), [
+    "-project", join(fixture.root, "native/generated/Tab Shelf/Tab Shelf.xcodeproj"),
+    "-scheme", "Tab Shelf",
+    "-configuration", "Release",
+    "-destination", "generic/platform=macOS",
+    "-archivePath", fixture.archivePath,
+    "DEVELOPMENT_TEAM=ABCDEFGHIJ",
+    "CODE_SIGN_STYLE=Automatic",
+    "archive",
+  ]);
   assert.match(result.stdout, /Tab Shelf local archive created/u);
   assert.doesNotMatch(result.stdout + result.stderr, /ABCDEFGHIJ|TOP_SECRET_TEAM/u);
   assert.equal(readFileSync(join(fixture.archivePath, "Info.plist"), "utf8").includes("com.jovaii.tabshelf"), true);
   assert.throws(() => readFileSync(join(fixture.archiveRoot, ".tab-shelf-archive.lock"), "utf8"));
+});
+
+test("public archive entrypoint ignores a fake PATH and exposes no tool override route", (t) => {
+  const fixture = makeArchiveFixture(t);
+  const result = spawnSync("/bin/bash", ["scripts/archive-app-store.sh"], {
+    cwd: fixture.root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: fixture.bin,
+      APPLE_TEAM_ID: "not-a-team",
+      TAB_SHELF_XCODE_APP: fixture.xcodeApp,
+      TAB_SHELF_DEVELOPER_DIR: fixture.developerDir,
+      TAB_SHELF_TEST_LOG: fixture.log,
+    },
+  });
+
+  assert.equal(result.status, 1);
+  assert.deepEqual(calls(fixture), []);
 });
 
 test("archive behavior refuses existing and symbolic-link archive targets or a symbolic-link build parent", (t) => {
