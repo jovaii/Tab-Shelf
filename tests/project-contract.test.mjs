@@ -59,6 +59,7 @@ test("publishes complete English setup, theme, build, and removal guidance", () 
   assert.match(readme, /com\.jovaii\.tabshelf/);
   assert.match(readme, /tab-shelf-preferences-v1\.json/);
   assert.match(readme, /THIRD_PARTY_NOTICES\.md/);
+  assert.match(readme, /Five authored themes:[^\n]*Storm Horizon/u);
 });
 
 test("records the 1.0.0 release and current acceptance boundary", () => {
@@ -67,7 +68,7 @@ test("records the 1.0.0 release and current acceptance boundary", () => {
 
   assert.match(changelog, /^## \[1\.0\.0\] - 2026-08-24$/m);
   assert.match(acceptance, /^# Tab Shelf 1\.0\.0 Release Acceptance$/m);
-  assert.match(acceptance, /85\/85 automated tests passed/);
+  assert.match(acceptance, /86\/86 automated tests passed/);
   assert.match(acceptance, /Full Xcode is required/);
   assert.match(acceptance, /Xcode 26\.6/);
   assert.match(acceptance, /com\.jovaii\.tabshelf\.extension/);

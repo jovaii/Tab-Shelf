@@ -198,24 +198,6 @@ func render(viewport: Viewport) throws {
     }
     print("PASS viewport=\(viewport.name) stage=shelf-metrics")
 
-    let snapshotConfiguration = WKSnapshotConfiguration()
-    snapshotConfiguration.rect = frame
-    snapshotConfiguration.snapshotWidth = NSNumber(value: viewport.width)
-    var snapshot: NSImage?
-    var snapshotFailure: Error?
-    webView.takeSnapshot(with: snapshotConfiguration) { image, error in
-        snapshot = image
-        snapshotFailure = error
-    }
-    guard waitUntil(timeout: 15, condition: { snapshot != nil || snapshotFailure != nil }),
-          let snapshot else {
-        throw snapshotFailure ?? CocoaError(.fileWriteUnknown)
-    }
-
-    let destination = outputDirectory.appendingPathComponent("\(viewport.name).png")
-    try pngData(from: snapshot, width: viewport.width, height: viewport.height)
-        .write(to: destination, options: .atomic)
-
     _ = try evaluate(
         "document.querySelector('[data-action=close-tab]').click(); 'clicked'",
         in: webView
@@ -245,15 +227,51 @@ func render(viewport: Viewport) throws {
         throw PreviewFailure(message: "Theme Studio heading was not available for \(viewport.name)")
     }
     print("PASS viewport=\(viewport.name) stage=open-settings")
-    _ = try evaluate("document.querySelectorAll('.preset-button')[3].click(); 'clicked'", in: webView)
+    _ = try evaluate("document.querySelectorAll('.preset-button')[4].click(); 'clicked'", in: webView)
     guard waitForValue(
         "light",
         script: "document.documentElement.getAttribute('data-text-mode')",
         in: webView
     ) else {
-        throw PreviewFailure(message: "Neon Bloom did not switch text mode for \(viewport.name)")
+        throw PreviewFailure(message: "Storm Horizon did not switch text mode for \(viewport.name)")
+    }
+    guard waitForValue(
+        "true",
+        script: "String(getComputedStyle(document.documentElement).getPropertyValue('--page-background').includes('#ff6255'))",
+        in: webView
+    ) else {
+        throw PreviewFailure(message: "Storm Horizon did not apply its coral horizon for \(viewport.name)")
     }
     print("PASS viewport=\(viewport.name) stage=theme-switch")
+
+    _ = try evaluate("document.querySelector('#open-shelf').click(); 'clicked'", in: webView)
+    guard waitForValue("/shelf.html", script: "location.pathname", in: webView),
+          waitForValue("true", script: renderReadyScript, in: webView),
+          waitForValue(
+              "light",
+              script: "document.documentElement.getAttribute('data-text-mode')",
+              in: webView
+          ) else {
+        throw PreviewFailure(message: "Storm Horizon shelf did not render for \(viewport.name)")
+    }
+
+    let snapshotConfiguration = WKSnapshotConfiguration()
+    snapshotConfiguration.rect = frame
+    snapshotConfiguration.snapshotWidth = NSNumber(value: viewport.width)
+    var snapshot: NSImage?
+    var snapshotFailure: Error?
+    webView.takeSnapshot(with: snapshotConfiguration) { image, error in
+        snapshot = image
+        snapshotFailure = error
+    }
+    guard waitUntil(timeout: 15, condition: { snapshot != nil || snapshotFailure != nil }),
+          let snapshot else {
+        throw snapshotFailure ?? CocoaError(.fileWriteUnknown)
+    }
+
+    let destination = outputDirectory.appendingPathComponent("\(viewport.name).png")
+    try pngData(from: snapshot, width: viewport.width, height: viewport.height)
+        .write(to: destination, options: .atomic)
 }
 
 try MainActor.assumeIsolated {

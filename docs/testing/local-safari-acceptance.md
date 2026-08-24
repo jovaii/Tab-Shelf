@@ -11,10 +11,10 @@ The deterministic local WebKit run passed at 1440 × 900 and 900 × 900. Each vi
 - the exact `Tab Shelf by James Li` credit;
 - one-tab close reducing the visible count from eight to seven;
 - navigation from the shelf to Theme Studio;
-- selection of Neon Bloom changing the document to light text;
+- selection of Storm Horizon applying light text and returning to the shelf before capture;
 - final PNG output at the requested pixel dimensions.
 
-The repository contract tests also verify the Safari-only browser API, minimal `tabs` and `storage` permissions, local-only settings, four authored themes, safe preference import, and independent PNG artwork.
+The repository contract tests also verify the Safari-only browser API, minimal `tabs` and `storage` permissions, local-only settings, five authored themes, safe preference import, and independent PNG artwork.
 
 The visual contract additionally verifies domain-specific card accents, privacy-safe favicon sampling with deterministic fallback colors, and the approved multilingual typography stack.
 
