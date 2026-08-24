@@ -42,14 +42,30 @@ test("package validates one project, one app, exact identifiers, signing, and le
   assert.match(script, /com\.jovaii\.Tab-Shelf/u);
   assert.match(script, /com\.jovaii\.tabshelf\.Extension/u);
   assert.match(script, /sed -i ''/u);
-  assert.match(script, /Set :CFBundleIdentifier \$OUTER_IDENTIFIER/u);
-  assert.match(script, /Set :CFBundleIdentifier \$EXTENSION_IDENTIFIER/u);
   assert.match(script, /codesign --force --sign -/u);
   assert.match(script, /codesign --verify --strict/u);
   assert.match(script, /ditto -c -k --sequesterRsrc --keepParent/u);
   for (const legalFile of ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]) {
     assert.match(script, new RegExp(legalFile.replace(".", "\\.")));
   }
+});
+
+test("package uses Xcode Sign to Run Locally for Safari registration", () => {
+  const script = source("scripts/package-macos.sh");
+
+  assert.doesNotMatch(script, /CODE_SIGNING_ALLOWED=NO/u);
+  assert.match(script, /CODE_SIGNING_ALLOWED=YES/u);
+  assert.match(script, /CODE_SIGN_IDENTITY=-/u);
+  assert.doesNotMatch(script, /codesign --force --sign - "\$NESTED_EXTENSION"/u);
+});
+
+test("package synchronizes the containing app with the final extension identifier", () => {
+  const script = source("scripts/package-macos.sh");
+
+  assert.match(script, /ViewController\.swift/u);
+  assert.match(script, /extensionBundleIdentifier/u);
+  assert.match(script, /com\.jovaii\.tabshelf\.Extension/u);
+  assert.match(script, /com\.jovaii\.tabshelf\.extension/u);
 });
 
 test("installer uses one exact target and a recoverable sibling backup", () => {

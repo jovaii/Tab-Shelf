@@ -97,8 +97,11 @@ mv "$PACKAGER_ROOT" "$GENERATED_PROJECT"
 
 XCODE_PROJECT="$(single_project)"
 PROJECT_SETTINGS="$XCODE_PROJECT/project.pbxproj"
+APP_VIEW_CONTROLLER="$GENERATED_PROJECT/Tab Shelf/Tab Shelf/ViewController.swift"
 [ -f "$PROJECT_SETTINGS" ] && [ ! -L "$PROJECT_SETTINGS" ] \
   || fail "The generated Xcode project settings are unsafe."
+[ -f "$APP_VIEW_CONTROLLER" ] && [ ! -L "$APP_VIEW_CONTROLLER" ] \
+  || fail "The generated App view controller is unsafe."
 
 GENERATED_OUTER_SETTING='PRODUCT_BUNDLE_IDENTIFIER = "com.jovaii.Tab-Shelf";'
 GENERATED_EXTENSION_SETTING='PRODUCT_BUNDLE_IDENTIFIER = com.jovaii.tabshelf.Extension;'
@@ -106,23 +109,31 @@ GENERATED_EXTENSION_SETTING='PRODUCT_BUNDLE_IDENTIFIER = com.jovaii.tabshelf.Ext
   || fail "The generated App identifier settings changed unexpectedly."
 [ "$(count_literal "$GENERATED_EXTENSION_SETTING" "$PROJECT_SETTINGS")" -eq 2 ] \
   || fail "The generated extension identifier settings changed unexpectedly."
+[ "$(count_literal 'let extensionBundleIdentifier = "com.jovaii.tabshelf.Extension"' "$APP_VIEW_CONTROLLER")" -eq 1 ] \
+  || fail "The generated App extension identifier changed unexpectedly."
 
 /usr/bin/sed -i '' \
   -e 's/PRODUCT_BUNDLE_IDENTIFIER = "com\.jovaii\.Tab-Shelf";/PRODUCT_BUNDLE_IDENTIFIER = com.jovaii.tabshelf;/g' \
   -e 's/PRODUCT_BUNDLE_IDENTIFIER = com\.jovaii\.tabshelf\.Extension;/PRODUCT_BUNDLE_IDENTIFIER = com.jovaii.tabshelf.extension;/g' \
   "$PROJECT_SETTINGS"
+/usr/bin/sed -i '' \
+  -e 's/let extensionBundleIdentifier = "com\.jovaii\.tabshelf\.Extension"/let extensionBundleIdentifier = "com.jovaii.tabshelf.extension"/g' \
+  "$APP_VIEW_CONTROLLER"
 
 [ "$(count_literal "PRODUCT_BUNDLE_IDENTIFIER = $OUTER_IDENTIFIER;" "$PROJECT_SETTINGS")" -eq 2 ] \
   || fail "The App identifier was not applied to both build configurations."
 [ "$(count_literal "PRODUCT_BUNDLE_IDENTIFIER = $EXTENSION_IDENTIFIER;" "$PROJECT_SETTINGS")" -eq 2 ] \
   || fail "The extension identifier was not applied to both build configurations."
+[ "$(count_literal 'let extensionBundleIdentifier = "com.jovaii.tabshelf.extension"' "$APP_VIEW_CONTROLLER")" -eq 1 ] \
+  || fail "The App extension identifier was not synchronized."
 
 DEVELOPER_DIR="$DEVELOPER_DIR_PATH" xcrun xcodebuild \
   -project "$XCODE_PROJECT" \
   -scheme "Tab Shelf" \
   -configuration Release \
   -derivedDataPath "$DERIVED_DATA" \
-  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGNING_ALLOWED=YES \
+  CODE_SIGN_IDENTITY=- \
   build
 
 BUILT_APP="$(single_built_app)"
@@ -135,15 +146,11 @@ mkdir -p "$LEGAL_DIRECTORY"
 /usr/bin/ditto "THIRD_PARTY_NOTICES.md" "$LEGAL_DIRECTORY/THIRD_PARTY_NOTICES.md"
 
 NESTED_EXTENSION="$(single_extension "$OUTPUT_APP")"
-/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $OUTER_IDENTIFIER" "$OUTPUT_APP/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $EXTENSION_IDENTIFIER" "$NESTED_EXTENSION/Contents/Info.plist"
-
 [ "$(bundle_identifier "$OUTPUT_APP")" = "$OUTER_IDENTIFIER" ] \
   || fail "The generated App bundle identifier is not $OUTER_IDENTIFIER."
 [ "$(bundle_identifier "$NESTED_EXTENSION")" = "$EXTENSION_IDENTIFIER" ] \
   || fail "The generated Safari extension identifier is not $EXTENSION_IDENTIFIER."
 
-/usr/bin/codesign --force --sign - "$NESTED_EXTENSION"
 /usr/bin/codesign --force --sign - "$OUTPUT_APP"
 /usr/bin/codesign --verify --strict "$NESTED_EXTENSION"
 /usr/bin/codesign --verify --strict --deep "$OUTPUT_APP"
