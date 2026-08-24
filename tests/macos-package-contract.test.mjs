@@ -59,6 +59,12 @@ test("package uses Xcode Sign to Run Locally for Safari registration", () => {
   assert.doesNotMatch(script, /codesign --force --sign - "\$NESTED_EXTENSION"/u);
 });
 
+test("package does not register the build-directory app with Launch Services", () => {
+  const script = source("scripts/package-macos.sh");
+
+  assert.match(script, /REGISTER_WITH_LAUNCH_SERVICES=NO/u);
+});
+
 test("package synchronizes the containing app with the final extension identifier", () => {
   const script = source("scripts/package-macos.sh");
 
