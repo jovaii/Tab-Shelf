@@ -308,7 +308,7 @@ npm run install:macos
 
 Expected: `/Applications/Tab Shelf.app` contains byte-identical updated theme resources, passes strict signature verification, and `pluginkit` reports exactly one `com.jovaii.tabshelf.extension` path under `/Applications/Tab Shelf.app`.
 
-- [ ] **Step 5: Run the final completion gate**
+- [x] **Step 5: Run the final completion gate**
 
 ```bash
 git status --short
