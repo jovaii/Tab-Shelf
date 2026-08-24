@@ -81,7 +81,15 @@ test("exposes dependency-free repeatable development commands", () => {
   const manifest = JSON.parse(readFileSync("package.json", "utf8"));
 
   assert.equal(manifest.engines.node, ">=24");
-  assert.equal(manifest.scripts.check, "npm test && npm run audit");
+  assert.equal(manifest.scripts.check, "npm test && npm run audit && npm run check:release");
+  assert.equal(
+    manifest.scripts["check:release"],
+    "node scripts/check-app-store-readiness.mjs --source-only",
+  );
+  assert.equal(
+    manifest.scripts["check:app-store"],
+    "node scripts/check-app-store-readiness.mjs --generated native/generated",
+  );
   assert.match(manifest.scripts.preview, /serve-preview\.mjs/);
   assert.match(manifest.scripts["render:preview"], /render-preview\.swift/);
   assert.equal(manifest.scripts["package:macos"], "bash scripts/package-macos.sh");

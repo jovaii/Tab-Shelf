@@ -5,7 +5,7 @@ import {
   readFileSync,
   readdirSync,
 } from "node:fs";
-import { relative, resolve, sep } from "node:path";
+import { basename, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const DEPENDENCY_DIRECTORIES = Object.freeze([
@@ -13,6 +13,30 @@ const DEPENDENCY_DIRECTORIES = Object.freeze([
   "vendor",
   "Pods",
   "Carthage",
+]);
+const SENSITIVE_EXTENSIONS = new Set([
+  ".cer",
+  ".ipa",
+  ".mobileprovision",
+  ".p12",
+  ".provisionprofile",
+  ".xcarchive",
+]);
+const SENSITIVE_FILENAME_PATTERNS = Object.freeze([
+  /^\.env(?:\.[a-z0-9_-]+)?$/iu,
+  /^AuthKey_[A-Z0-9]+\.p8$/u,
+  /^(?:app[-_ ]?store[-_ ]?connect|asc)[-_ ](?:api[-_ ]?key|credentials?)\.(?:json|p8)$/iu,
+  /^ExportOptions\.plist$/u,
+]);
+const INVENTORY_SKIP_DIRECTORIES = new Set([
+  ".git",
+  ".superpowers",
+  ".worktrees",
+  "artifacts",
+  "build",
+  "dist",
+  "generated",
+  ...DEPENDENCY_DIRECTORIES,
 ]);
 
 function isMissing(error) {
@@ -76,6 +100,80 @@ export function listTrackedFiles(root) {
       }
     })
     .sort();
+}
+
+function walkBoundedInventory(
+  root,
+  directory,
+  output,
+  skipDirectories = INVENTORY_SKIP_DIRECTORIES,
+) {
+  let entries;
+  try {
+    entries = readdirSync(directory, { withFileTypes: true });
+  } catch (error) {
+    if (isMissing(error)) return;
+    throw error;
+  }
+  for (const entry of entries) {
+    const absolute = resolve(directory, entry.name);
+    const path = relative(root, absolute).split(sep).join("/");
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) {
+      output.add(path);
+      if (!skipDirectories.has(entry.name)) {
+        walkBoundedInventory(root, absolute, output, skipDirectories);
+      }
+    } else if (entry.isFile()) {
+      output.add(path);
+    }
+  }
+}
+
+function sensitiveInventory(root) {
+  const repositoryRoot = assertRealDirectory(root, "Repository root");
+  const inventory = new Set(listTrackedFiles(repositoryRoot));
+  walkBoundedInventory(repositoryRoot, repositoryRoot, inventory);
+  return [...inventory].sort();
+}
+
+function isSensitiveName(name) {
+  const lowerName = name.toLocaleLowerCase("en-US");
+  if ([...SENSITIVE_EXTENSIONS].some((extension) => lowerName.endsWith(extension))) {
+    return true;
+  }
+  return SENSITIVE_FILENAME_PATTERNS.some((pattern) => pattern.test(name));
+}
+
+function isSensitivePath(path) {
+  return path.split("/").some((component) => isSensitiveName(basename(component)));
+}
+
+function sensitiveFindings(inventory) {
+  const findings = [];
+  for (const path of inventory.filter(isSensitivePath).sort()) {
+    if (!findings.some((finding) => path.startsWith(`${finding}/`))) findings.push(path);
+  }
+  return findings;
+}
+
+export function assertNoSensitiveRepositoryFiles(root) {
+  const count = sensitiveFindings(sensitiveInventory(root)).length;
+  if (count > 0) {
+    throw new Error(`Sensitive repository audit failed: signing or credential files=${count}`);
+  }
+  return 0;
+}
+
+export function assertNoSensitiveTree(root) {
+  const treeRoot = assertRealDirectory(root, "Sensitive audit root");
+  const inventory = new Set();
+  walkBoundedInventory(treeRoot, treeRoot, inventory, new Set([".git"]));
+  const count = sensitiveFindings([...inventory]).length;
+  if (count > 0) {
+    throw new Error(`Sensitive tree audit failed: signing or credential files=${count}`);
+  }
+  return 0;
 }
 
 function scanText(path, content, normalizedTerms) {
@@ -184,7 +282,7 @@ function readTerms(path) {
 
 function scanCommitMetadata(root, terms) {
   if (terms.length === 0) return [];
-  const metadata = runGit(root, ["log", "--format=%an%n%ae%n%B%x00"], "utf8");
+  const metadata = runGit(root, ["log", "--all", "--format=%an%n%ae%n%B%x00"], "utf8");
   const normalizedTerms = terms.map((term) => term.normalize("NFKC").toLocaleLowerCase("en-US"));
   return scanText("<git-history>", metadata, normalizedTerms);
 }
@@ -199,6 +297,7 @@ export function runAudit({
   const files = listTrackedFiles(repositoryRoot);
   const terms = readTerms(prohibitedTermsFile);
   assertNoDependencyTrees(repositoryRoot);
+  assertNoSensitiveRepositoryFiles(repositoryRoot);
 
   const findings = scanTerms({ root: repositoryRoot, files, terms });
   findings.push(...scanCommitMetadata(repositoryRoot, terms));
@@ -225,6 +324,7 @@ export function runAudit({
   return Object.freeze({
     trackedFiles: files.length,
     dependencyCount: 0,
+    sensitiveFiles: 0,
     prohibitedMatches: 0,
     wholeFileMatches: 0,
   });

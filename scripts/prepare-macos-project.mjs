@@ -402,14 +402,14 @@ function transformConfiguration(dictionary, target, configuration) {
   return transformed;
 }
 
-function prepareProjectSettings(source) {
+function projectConfigurations(source) {
   const { objects, mask } = parsePBXObjects(source);
   const targets = objectsWithIsa(objects, "PBXNativeTarget");
   if (targets.length !== 2) {
     throw new Error(`native targets: expected 2, found ${targets.length}`);
   }
 
-  const replacements = [];
+  const entries = [];
   for (const [targetName, productType] of [
     [RELEASE.productName, "com.apple.product-type.application"],
     [`${RELEASE.productName} Extension`, "com.apple.product-type.app-extension"],
@@ -450,18 +450,87 @@ function prepareProjectSettings(source) {
 
     for (const { configuration, name } of namedConfigurations) {
       const range = buildSettingsRange(configuration, source, mask, `${targetName} ${name}`);
-      replacements.push({
+      entries.push({
+        target: targetName,
+        configuration: name,
         ...range,
-        contents: transformConfiguration(source.slice(range.start, range.end), targetName, name),
+        contents: source.slice(range.start, range.end),
       });
     }
   }
+  return entries;
+}
+
+function prepareProjectSettings(source) {
+  const replacements = projectConfigurations(source).map((entry) => ({
+    ...entry,
+    contents: transformConfiguration(
+      entry.contents,
+      entry.target,
+      entry.configuration,
+    ),
+  }));
 
   let prepared = source;
   for (const replacement of replacements.sort((left, right) => right.start - left.start)) {
     prepared = `${prepared.slice(0, replacement.start)}${replacement.contents}${prepared.slice(replacement.end)}`;
   }
   return prepared;
+}
+
+function requirePreparedSetting(dictionary, key, expected, label) {
+  const values = directAssignments({ source: dictionary }, key);
+  if (values.length !== 1 || values[0] !== expected) {
+    const actual = values.length === 1 ? values[0] : `count ${values.length}`;
+    throw new Error(`${label} ${key}: expected ${expected}, found ${actual}`);
+  }
+}
+
+export function validatePreparedProjectSettings(source) {
+  const configurations = projectConfigurations(source);
+  for (const entry of configurations) {
+    const label = `${entry.target} ${entry.configuration}`;
+    requirePreparedSetting(
+      entry.contents,
+      "CURRENT_PROJECT_VERSION",
+      RELEASE.build,
+      label,
+    );
+    requirePreparedSetting(entry.contents, "ENABLE_APP_SANDBOX", "YES", label);
+    requirePreparedSetting(entry.contents, "MARKETING_VERSION", RELEASE.version, label);
+
+    if (entry.target === RELEASE.productName) {
+      requirePreparedSetting(
+        entry.contents,
+        "PRODUCT_BUNDLE_IDENTIFIER",
+        RELEASE.appBundleIdentifier,
+        label,
+      );
+      requirePreparedSetting(
+        entry.contents,
+        "ENABLE_OUTGOING_NETWORK_CONNECTIONS",
+        "NO",
+        label,
+      );
+    } else {
+      requirePreparedSetting(
+        entry.contents,
+        "PRODUCT_BUNDLE_IDENTIFIER",
+        RELEASE.extensionBundleIdentifier,
+        label,
+      );
+      const networkValues = directAssignments(
+        { source: entry.contents },
+        "ENABLE_OUTGOING_NETWORK_CONNECTIONS",
+      );
+      if (networkValues.length !== 0) {
+        throw new Error(
+          `${label} ENABLE_OUTGOING_NETWORK_CONNECTIONS: expected absent, found count ${networkValues.length}`,
+        );
+      }
+    }
+  }
+  return Object.freeze({ configurations: configurations.length, networkEntitlement: "off" });
 }
 
 function validateTemplate(label, contents) {

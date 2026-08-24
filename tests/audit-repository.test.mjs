@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import {
   assertNoDependencyTrees,
+  assertNoSensitiveRepositoryFiles,
   compareWholeFileHashes,
   listTrackedFiles,
   scanTerms,
@@ -79,5 +80,63 @@ test("rejects a vendored dependency directory", () => {
     mkdirSync(join(root, "node_modules"));
 
     assert.throws(() => assertNoDependencyTrees(root), /Dependency tree is not allowed/);
+  });
+});
+
+test("rejects tracked and untracked signing or credential artifacts without disclosing them", () => {
+  withTemporaryDirectory((root) => {
+    writeFileSync(join(root, ".gitignore"), ".env\n");
+    writeFileSync(join(root, ".env"), "SYNTHETIC_TEST_VALUE=not-a-secret\n");
+    writeFileSync(join(root, "export.p12"), "synthetic fixture only\n");
+    assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
+    assert.equal(spawnSync("git", ["-C", root, "add", ".gitignore"]).status, 0);
+
+    assert.throws(
+      () => assertNoSensitiveRepositoryFiles(root),
+      (error) => {
+        assert.match(error.message, /signing or credential files=2/u);
+        assert.equal(error.message.includes("SYNTHETIC_TEST_VALUE"), false);
+        assert.equal(error.message.includes("export.p12"), false);
+        return true;
+      },
+    );
+  });
+});
+
+test("rejects every signing export extension and App Store credential filename", () => {
+  withTemporaryDirectory((root) => {
+    writeFileSync(join(root, ".gitignore"), "*.p8\n");
+    for (const extension of [
+      ".p12",
+      ".cer",
+      ".mobileprovision",
+      ".provisionprofile",
+      ".ipa",
+    ]) {
+      writeFileSync(join(root, `synthetic${extension}`), "synthetic fixture only\n");
+    }
+    mkdirSync(join(root, "synthetic.xcarchive"));
+    const credentialName = ["Auth", "Key_", "TESTONLY", ".p8"].join("");
+    writeFileSync(join(root, credentialName), "synthetic fixture only\n");
+    assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
+    assert.equal(spawnSync("git", ["-C", root, "add", ".gitignore"]).status, 0);
+
+    assert.throws(
+      () => assertNoSensitiveRepositoryFiles(root),
+      /signing or credential files=7/u,
+    );
+  });
+});
+
+test("sensitive inventory does not traverse Git or ignored build output", () => {
+  withTemporaryDirectory((root) => {
+    writeFileSync(join(root, ".gitignore"), "build/\n");
+    mkdirSync(join(root, "build"));
+    assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
+    assert.equal(spawnSync("git", ["-C", root, "add", ".gitignore"]).status, 0);
+    writeFileSync(join(root, "build/synthetic.p12"), "ignored build output\n");
+    writeFileSync(join(root, ".git/synthetic.p12"), "Git internals are outside the scan\n");
+
+    assert.doesNotThrow(() => assertNoSensitiveRepositoryFiles(root));
   });
 });

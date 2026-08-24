@@ -11,7 +11,9 @@
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "audit": "node scripts/audit-repository.mjs",
-    "check": "npm test && npm run audit",
+    "check": "npm test && npm run audit && npm run check:release",
+    "check:release": "node scripts/check-app-store-readiness.mjs --source-only",
+    "check:app-store": "node scripts/check-app-store-readiness.mjs --generated native/generated",
     "preview": "node scripts/serve-preview.mjs --host 127.0.0.1 --port 4173",
     "render:preview": "SWIFT_MODULECACHE_PATH=/private/tmp/tab-shelf-swift-cache CLANG_MODULE_CACHE_PATH=/private/tmp/tab-shelf-swift-cache swift scripts/render-preview.swift 'http://127.0.0.1:4173/shelf.html?preview=1' build/screenshots",
     "package:macos": "bash scripts/package-macos.sh",
