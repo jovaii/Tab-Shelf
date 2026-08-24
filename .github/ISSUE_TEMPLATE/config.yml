@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Tab Shelf Support
+    url: https://github.com/jovaii/Tab-Shelf/blob/main/SUPPORT.md
+    about: Read setup, recovery, privacy-safe reporting, and uninstall guidance.
+  - name: Tab Shelf Privacy Policy
+    url: https://github.com/jovaii/Tab-Shelf/blob/main/PRIVACY.md
+    about: Review what Tab Shelf processes locally and why Safari shows its permission warning.

@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest a focused improvement that preserves Tab Shelf's privacy-first boundary.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an improvement.
+
+        **Do not include private URLs, browsing history, credentials, or personal screenshots. Use neutral examples and redact personal details.**
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Explain the user need without sharing personal browsing data.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: What is your proposed solution?
+      description: Describe the smallest useful outcome and how it fits a local Safari utility.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional. Describe other workflows you considered.
+  - type: checkboxes
+    id: product-boundary
+    attributes:
+      label: Product boundary
+      options:
+        - label: This request does not require ads, analytics, telemetry, accounts, or a remote runtime service.
+          required: true

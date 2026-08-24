@@ -1,0 +1,72 @@
+name: Bug report
+description: Report a reproducible Tab Shelf problem without sharing private browsing data.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve Tab Shelf.
+
+        **Do not paste private URLs or browsing history. Do not attach credentials or personal screenshots. Use disposable example tabs and redact personal details.**
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: "For example: macOS 26.0"
+    validations:
+      required: true
+  - type: input
+    id: safari-version
+    attributes:
+      label: Safari version
+      placeholder: "For example: Safari 26.0"
+    validations:
+      required: true
+  - type: input
+    id: tab-shelf-version
+    attributes:
+      label: Tab Shelf version
+      placeholder: "For example: 1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-channel
+    attributes:
+      label: Install channel
+      options:
+        - Build from source
+        - Mac App Store
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use neutral example pages and disposable tabs.
+      placeholder: |
+        1. Open...
+        2. Select...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy-check
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed private URLs, browsing history, credentials, and personal screenshots from this report.
+          required: true

@@ -1,6 +1,34 @@
 # Tab Shelf
 
-Tab Shelf is a Safari-only personal utility for organizing open tabs on the current Mac. It replaces Safari's new-tab page with a calm visual shelf, groups ordinary web tabs by domain, highlights duplicate pages, and provides focused cleanup and appearance controls.
+> A calm, private visual shelf for the Safari tabs open on your Mac.
+
+## Why Tab Shelf
+
+Tab Shelf is a Safari-only personal utility that turns the tabs open on the current Mac into a focused visual workspace. It groups ordinary web tabs by domain, makes duplicates easy to spot, and keeps cleanup and appearance controls close at hand.
+
+It is designed for people who want a quieter way to review many Safari tabs without creating an account or sending browsing data to a service.
+
+## See it in action
+
+Open a new Safari tab to see one consistent card per domain. Each card shows its open pages, a locally derived accent, and direct controls to activate or close tabs. The toolbar popover provides the current web-tab count and a quick route to the shelf and Theme Studio.
+
+Real product screenshots are prepared from the verified Safari build before each public release. No placeholder store artwork or private browsing data is used here.
+
+## Choose your install path
+
+Both install paths provide the same core features. The difference is how Tab Shelf is installed, signed, and updated.
+
+### Build from source — Free
+
+Use the public Apache-2.0 source with Safari's developer workflow. This path is free and intended for people comfortable enabling Safari developer features, running the repository checks, and managing their own local build or temporary installation.
+
+### Mac App Store — USD 9.99 one time
+
+The Mac App Store edition has the same core features with Apple-reviewed installation, signing, and updates. The price is a one-time USD 9.99 purchase.
+
+No ads, subscriptions, accounts, analytics, or telemetry are included in either edition.
+
+**Mac App Store release in preparation.** There is no public store listing yet, so this README does not link to or display a store badge.
 
 ## Features
 
@@ -16,25 +44,27 @@ Tab Shelf is a Safari-only personal utility for organizing open tabs on the curr
 - An editorial system-font pairing with readable multilingual tab titles.
 - Keyboard focus, reduced-motion support, semantic HTML, and responsive layouts.
 
-## Privacy
+## Privacy by design
 
-Tab Shelf runs inside Safari on the current Mac. No telemetry, analytics, advertising, or account data is collected, and the application makes no network requests of its own. The extension requests only Safari's `tabs` and `storage` permissions. Preferences and an optional personal background image remain in Safari's local extension storage.
+Tab Shelf processes open-tab titles, URLs, favicons, preferences, and optional user-selected backgrounds locally on the current Mac. It does not collect, transmit, sell, or share this data, and it makes no first-party network requests. No telemetry is included.
 
-Card accents sample only favicon pixels already loaded by Safari. If an image cannot be read, Tab Shelf uses a deterministic color derived from the domain name; it does not fetch another image or send the domain to a service.
+Safari may describe the extension's access as browsing-history access. Tab Shelf uses the `tabs` permission to display and manage tabs that are currently open; it does not build or transmit a browsing-history database. Preferences and an optional background image remain in Safari's local extension storage.
 
-The source uses no third-party runtime packages, remote fonts, stock images, or icon packs. Artwork in `extension/icons/` is generated locally from `scripts/generate-icons.swift`.
+Card accents sample only favicon pixels already available to Safari. If an image cannot be read, Tab Shelf uses a deterministic color derived from the domain name; it does not fetch another image or send the domain to a service.
 
-App Store generated-project readiness currently supports only Xcode 26.6 and Safari Web Extension Converter 26.6. The reviewed templates, metadata, and artwork for that profile live in `native/release/xcode-26.6`; a different generator profile fails closed until it is explicitly reviewed and pinned.
+The source uses no third-party runtime packages, remote fonts, stock images, or icon packs. Artwork in `extension/icons/` is generated locally from `scripts/generate-icons.swift`. Read the complete [Privacy Policy](PRIVACY.md).
 
-## Requirements
+## Build from source
+
+### Requirements
 
 - A current macOS release with Safari Web Extension support.
 - Node.js 24 or newer for the dependency-free test and audit commands.
-- Full Xcode only when generating the official macOS App container.
+- Full Xcode only when generating the macOS App container.
 
 No package installation step is required.
 
-## Temporary Safari installation
+### Temporary Safari installation
 
 1. Open Safari → Settings → Advanced and enable **Show features for web developers**.
 2. Open Safari → Settings → Developer and enable **Allow unsigned extensions**.
@@ -44,21 +74,21 @@ No package installation step is required.
 
 Safari resets unsigned-extension permission after it fully quits. See [the local Safari acceptance checklist](docs/testing/local-safari-acceptance.md) before testing close actions against disposable tabs.
 
-## Theme Studio
+### Theme Studio
 
 Open the toolbar popover or the round settings control on the shelf, then select **Theme settings**. Changes save automatically on this Mac. Background images are resized and compressed locally before storage; PNG, JPEG, and WebP are accepted.
 
 Use **Export theme** to download `tab-shelf-preferences-v1.json`. **Import theme** accepts only the current validated Tab Shelf schema. **Reset appearance** restores Quiet Neutral.
 
-## Development checks
+### Development checks
 
-Run the entire dependency-free test and repository audit:
+Run the entire dependency-free test, repository audit, and source-release readiness check:
 
 ```bash
 npm run check
 ```
 
-Run either part separately:
+Run the test suite or audit separately:
 
 ```bash
 npm test
@@ -67,7 +97,7 @@ npm run audit
 
 The audit checks the tracked product, dependency inventory, symlink boundary, product identity, and optional generated App resources without sending repository contents elsewhere.
 
-## Local WebKit preview
+### Local WebKit preview
 
 Start the loopback-only preview server:
 
@@ -83,7 +113,7 @@ npm run render:preview
 
 Screenshots are written to `build/screenshots/`. Synthetic tabs are injected only for the explicit local `?preview=1` URL when Safari's extension API is absent. Production files under `extension/` do not read the preview fixture.
 
-## Official macOS App
+### Local macOS App build
 
 The App uses bundle identifiers `com.jovaii.tabshelf` and `com.jovaii.tabshelf.extension`. Install full Xcode, open it once to finish component setup, then run:
 
@@ -92,34 +122,43 @@ npm run package:macos
 npm run install:macos
 ```
 
-Packaging uses Apple's `safari-web-extension-packager`, builds Release, checks both bundle identifiers, signs the nested extension and outer App ad hoc, verifies signatures, and creates:
-
-- `build/Tab Shelf.app`
-- `dist/Tab-Shelf-1.0.0.zip`
-
-The installer verifies the new App before changing `/Applications`. If `/Applications/Tab Shelf.app` already exists, it is moved to a timestamped sibling backup. A failed copy is retained separately and the verified backup is restored. The scripts never recursively delete build or application data.
+The local packaging workflow creates `build/Tab Shelf.app` and `dist/Tab-Shelf-1.0.0.zip`. The installer verifies the new App before changing `/Applications`. If `/Applications/Tab Shelf.app` already exists, it is moved to a timestamped sibling backup. A failed copy is retained separately and the verified backup is restored.
 
 The App bundle includes [LICENSE](LICENSE), [NOTICE](NOTICE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-## Project layout
+### Project layout
 
 - `extension/` — Safari Web Extension manifest, pages, modules, styles, and icons.
 - `scripts/` — audits, local preview, WebKit rendering, artwork, packaging, and installation.
 - `tests/` — dependency-free Node tests and synthetic fixtures.
 - `docs/testing/` — current Safari and release acceptance records.
 
-## Limitations
+### Limitations
 
-- Official App packaging requires full Xcode; Command Line Tools alone do not include Apple's Safari packager.
+- Official App packaging requires full Xcode; Command Line Tools alone do not include Apple's Safari conversion and build tools.
 - A temporary extension may need to be added again after Safari restarts.
 - **Save for later** is visibly disabled and reserved for a future version.
 - Real Safari close actions should be tested with disposable tabs because closed pages may contain unsaved work.
 
-## Uninstall
+## Mac App Store
+
+The Mac App Store edition is planned as a one-time USD 9.99 purchase with the same core features as the free source edition. It is intended to provide Apple-reviewed installation, signing, and updates without requiring Safari developer setup.
+
+Mac App Store release in preparation. A public listing link will be added only after Apple publishes the verified product page.
+
+## Support
+
+Start with the enablement, permissions, duplicate-entry, new-tab, theme-reset, and removal guidance in [SUPPORT.md](SUPPORT.md). When reporting a problem, do not include private URLs, browsing history, credentials, or personal screenshots.
+
+### Uninstall
 
 For a temporary extension, disable **Tab Shelf** in Safari → Settings → Extensions or fully quit Safari.
 
 For the packaged App, first disable its Safari extension, quit **Tab Shelf**, and move `/Applications/Tab Shelf.app` to Trash. Timestamped `.backup-…` and `.failed-…` siblings are intentionally retained for recovery and can be reviewed separately.
+
+## Contributing
+
+English-language bug fixes and focused improvements are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 ## License
 
