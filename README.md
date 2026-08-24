@@ -5,6 +5,7 @@ Tab Shelf is a Safari-only personal utility for organizing open tabs on the curr
 ## Features
 
 - One consistent card per domain in a responsive grid.
+- A distinct card accent per domain, derived locally from an available favicon with a stable privacy-safe fallback.
 - Full tab titles with safe two-line truncation and tooltips.
 - Activate a tab, close one tab, close a domain, or close extra shelf pages.
 - Toolbar badge and popover for the current web-tab count.
@@ -12,11 +13,14 @@ Tab Shelf is a Safari-only personal utility for organizing open tabs on the curr
 - Custom solid, linear-gradient, radial-gradient, and local-image backgrounds.
 - Adjustable image fit, blur, image opacity, overlay, card opacity, text mode, contrast, and accent color.
 - Local theme export and import through `tab-shelf-preferences-v1.json`.
-- Keyboard focus, reduced-motion support, semantic HTML, system fonts, and responsive layouts.
+- An editorial system-font pairing with readable multilingual tab titles.
+- Keyboard focus, reduced-motion support, semantic HTML, and responsive layouts.
 
 ## Privacy
 
 Tab Shelf runs inside Safari on the current Mac. No telemetry, analytics, advertising, or account data is collected, and the application makes no network requests of its own. The extension requests only Safari's `tabs` and `storage` permissions. Preferences and an optional personal background image remain in Safari's local extension storage.
+
+Card accents sample only favicon pixels already loaded by Safari. If an image cannot be read, Tab Shelf uses a deterministic color derived from the domain name; it does not fetch another image or send the domain to a service.
 
 The source uses no third-party runtime packages, remote fonts, stock images, or icon packs. Artwork in `extension/icons/` is generated locally from `scripts/generate-icons.swift`.
 

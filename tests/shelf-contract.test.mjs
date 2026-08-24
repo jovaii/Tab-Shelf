@@ -60,6 +60,21 @@ test("colors and typography are role-based", () => {
   assert.doesNotMatch(css, /@font-face|\.woff2?|\.ttf|\.otf/iu);
 });
 
+test("cards use local site colors and the approved editorial type pairing", () => {
+  const tokens = source("extension/shared/tokens.css");
+  const css = source("extension/shelf.css");
+
+  assert.match(tokens, /--font-body:\s*"Avenir Next",\s*"SF Pro Text",\s*"PingFang SC"/u);
+  assert.match(tokens, /--text-heading:\s*1rem/u);
+  assert.match(css, /html\s*\{[^}]*font-kerning:\s*normal[^}]*font-optical-sizing:\s*auto/isu);
+  assert.match(css, /\.site-card\s*\{[^}]*--site-accent:\s*var\(--color-accent-solid\)/isu);
+  assert.match(css, /\.site-card::before\s*\{[^}]*inset-inline:\s*0[^}]*block-size:\s*4px[^}]*background:\s*var\(--site-accent\)/isu);
+  assert.match(css, /\.site-card:hover\s*\{[^}]*border-color:\s*var\(--site-accent-border\)/isu);
+  assert.match(css, /\.site-card__marker\s*\{[^}]*color:\s*var\(--site-accent-text\)[^}]*background:\s*var\(--site-accent-soft\)/isu);
+  assert.match(css, /\.site-card__title\s*\{[^}]*font-size:\s*var\(--text-heading\)[^}]*font-weight:\s*600/isu);
+  assert.match(css, /\.tab-row__title\s*\{[^}]*font-size:\s*var\(--text-body\)[^}]*font-weight:\s*500[^}]*line-height:\s*1\.5/isu);
+});
+
 test("application modules never inject HTML strings", () => {
   const javascript = [
     "extension/ui/dom.mjs",

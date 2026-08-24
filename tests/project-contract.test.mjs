@@ -67,7 +67,7 @@ test("records the 1.0.0 release and current acceptance boundary", () => {
 
   assert.match(changelog, /^## \[1\.0\.0\] - 2026-08-24$/m);
   assert.match(acceptance, /^# Tab Shelf 1\.0\.0 Release Acceptance$/m);
-  assert.match(acceptance, /74\/74 automated tests passed/);
+  assert.match(acceptance, /85\/85 automated tests passed/);
   assert.match(acceptance, /Full Xcode is required/);
   assert.match(acceptance, /Xcode 26\.6/);
   assert.match(acceptance, /com\.jovaii\.tabshelf\.extension/);
