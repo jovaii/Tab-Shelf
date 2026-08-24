@@ -244,7 +244,7 @@ npm run check
 
 Expected: 86/86 tests pass and the repository audit reports `dependencies=0 prohibited=0 whole_file_matches=0`.
 
-- [ ] **Step 6: Commit the acceptance and documentation update**
+- [x] **Step 6: Commit the acceptance and documentation update**
 
 ```bash
 git add scripts/render-preview.swift tests/preview-contract.test.mjs tests/project-contract.test.mjs README.md docs/testing/local-safari-acceptance.md docs/testing/release-acceptance.md docs/superpowers/plans/2026-08-24-storm-horizon-preset.md
@@ -264,7 +264,7 @@ git commit -m "test: capture Storm Horizon visual acceptance"
 - Consumes: the verified source tree, native WebKit renderer, Xcode packager, and recoverable installer.
 - Produces: the installed local Safari App, exactly one registered extension instance, and a public GitHub `main` matching the verified source.
 
-- [ ] **Step 1: Render both native WebKit viewports**
+- [x] **Step 1: Render both native WebKit viewports**
 
 Run the loopback-only server:
 
@@ -280,7 +280,7 @@ npm run render:preview
 
 Expected: eight PASS stages and two PNG files at exactly 1440 × 900 and 900 × 900.
 
-- [ ] **Step 2: Inspect both screenshots**
+- [x] **Step 2: Inspect both screenshots**
 
 Verify all of the following:
 
@@ -290,7 +290,7 @@ Verify all of the following:
 - cards remain equal, with no merged layout, clipping, or horizontal overflow;
 - no reference text, logo, signature, or watermark appears.
 
-- [ ] **Step 3: Rebuild the official local App**
+- [x] **Step 3: Rebuild the official local App**
 
 Move only the four exact old generated outputs to a validated `/private/tmp/tab-shelf-pre-storm-build.*` directory, then run:
 
@@ -300,7 +300,7 @@ npm run package:macos
 
 Expected: Xcode reports `BUILD SUCCEEDED`, strict signatures pass, the App identifiers remain `com.jovaii.tabshelf` and `com.jovaii.tabshelf.extension`, and the App package contains the new preference and settings resources plus all three legal files.
 
-- [ ] **Step 4: Install and verify one Safari extension instance**
+- [x] **Step 4: Install and verify one Safari extension instance**
 
 ```bash
 npm run install:macos
