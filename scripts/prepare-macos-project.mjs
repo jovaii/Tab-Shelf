@@ -1,21 +1,44 @@
+import fs from "node:fs";
 import {
   lstatSync,
   readdirSync,
-  readFileSync,
   realpathSync,
-  writeFileSync,
 } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { RELEASE } from "./release-config.mjs";
 
 const COPYRIGHT = "Copyright 2026 James Li / Jovaii";
-const GENERATED_APP_IDENTIFIER = 'PRODUCT_BUNDLE_IDENTIFIER = "com.jovaii.Tab-Shelf";';
-const GENERATED_EXTENSION_IDENTIFIER =
-  "PRODUCT_BUNDLE_IDENTIFIER = com.jovaii.tabshelf.Extension;";
 const GENERATED_SWIFT_IDENTIFIER =
   'let extensionBundleIdentifier = "com.jovaii.tabshelf.Extension"';
+const TEMPLATE_ANCHORS = Object.freeze({
+  "ViewController.swift": [
+    [`let extensionBundleIdentifier = "${RELEASE.extensionBundleIdentifier}"`, 1, "release identifier"],
+    [
+      "final class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHandler {",
+      1,
+      "controller declaration",
+    ],
+    ["webView.loadFileURL(page, allowingReadAccessTo: resourceRoot)", 1, "local resource load"],
+  ],
+  "Main.html": [
+    ["<!doctype html>", 1, "doctype"],
+    ["<main>", 1, "anchor <main>"],
+    ['src="../Icon.png"', 1, "generated icon reference"],
+    ['<script src="../Script.js" defer></script>', 1, "local script reference"],
+  ],
+  "Style.css": [
+    [":root {", 2, "root rules"],
+    ['--font-ui: -apple-system, "Helvetica Neue", sans-serif;', 1, "system font stack"],
+    ["@media (prefers-reduced-motion: reduce) {", 1, "reduced motion query"],
+  ],
+  "Script.js": [
+    ["const approvedActions = new Set([", 1, "approved action set"],
+    ["function showExtensionState(enabled, usesSettingsName) {", 1, "state function"],
+    ["window.showExtensionState = showExtensionState;", 1, "bridge export"],
+  ],
+});
 
 export function replaceExact(source, before, after, expectedCount, label) {
   const actual = source.split(before).length - 1;
@@ -110,54 +133,526 @@ function requireOneTarget(projectContainer, targetName, label) {
   return join(projectContainer, targetName);
 }
 
-function validatePreparedProject(source) {
-  const expectedValues = [
-    [
-      `PRODUCT_BUNDLE_IDENTIFIER = ${RELEASE.appBundleIdentifier};`,
-      2,
-      "prepared App bundle identifiers",
-    ],
-    [
-      `PRODUCT_BUNDLE_IDENTIFIER = ${RELEASE.extensionBundleIdentifier};`,
-      2,
-      "prepared extension bundle identifiers",
-    ],
-    ["ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;", 2, "prepared outgoing network settings"],
-    ["ENABLE_APP_SANDBOX = YES;", 4, "App Sandbox build settings"],
-    [`MARKETING_VERSION = ${RELEASE.version};`, 4, "prepared marketing versions"],
-    [`CURRENT_PROJECT_VERSION = ${RELEASE.build};`, 4, "prepared build versions"],
-    [COPYRIGHT, 4, "prepared copyright settings"],
-  ];
+function codeMask(source) {
+  const mask = new Uint8Array(source.length);
+  let state = "code";
+  let escaped = false;
 
-  for (const [value, count, label] of expectedValues) {
-    replaceExact(source, value, value, count, label);
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    const next = source[index + 1];
+    if (state === "code") {
+      if (character === '"') {
+        state = "string";
+      } else if (character === "/" && next === "*") {
+        state = "block-comment";
+        index += 1;
+      } else if (character === "/" && next === "/") {
+        state = "line-comment";
+        index += 1;
+      } else {
+        mask[index] = 1;
+      }
+    } else if (state === "string") {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        state = "code";
+      }
+    } else if (state === "block-comment" && character === "*" && next === "/") {
+      state = "code";
+      index += 1;
+    } else if (state === "line-comment" && (character === "\n" || character === "\r")) {
+      state = "code";
+      mask[index] = 1;
+    }
+  }
+
+  return mask;
+}
+
+function findClosingDelimiter(source, mask, openingIndex, opening, closing, label) {
+  let depth = 0;
+  for (let index = openingIndex; index < source.length; index += 1) {
+    if (!mask[index]) continue;
+    if (source[index] === opening) depth += 1;
+    if (source[index] !== closing) continue;
+    depth -= 1;
+    if (depth === 0) return index;
+  }
+  throw new Error(`${label} has an unclosed ${opening}`);
+}
+
+function parsePBXObjects(source) {
+  const mask = codeMask(source);
+  const objects = [];
+  const start = /^[\t ]*([A-F0-9]{24})(?: \/\*[^\r\n]*\*\/)? = \{/gmu;
+  for (const match of source.matchAll(start)) {
+    const identifierIndex = match.index + match[0].indexOf(match[1]);
+    if (!mask[identifierIndex]) continue;
+    const openingIndex = match.index + match[0].lastIndexOf("{");
+    const closingIndex = findClosingDelimiter(
+      source,
+      mask,
+      openingIndex,
+      "{",
+      "}",
+      `PBX object ${match[1]}`,
+    );
+    objects.push({
+      id: match[1],
+      start: openingIndex + 1,
+      end: closingIndex,
+      source: source.slice(openingIndex + 1, closingIndex),
+      sourceOffset: openingIndex + 1,
+    });
+  }
+  return { objects, mask };
+}
+
+function isDirectPosition(source, mask, position) {
+  let braceDepth = 0;
+  let parenthesisDepth = 0;
+  for (let index = 0; index < position; index += 1) {
+    if (!mask[index]) continue;
+    if (source[index] === "{") braceDepth += 1;
+    if (source[index] === "}") braceDepth -= 1;
+    if (source[index] === "(") parenthesisDepth += 1;
+    if (source[index] === ")") parenthesisDepth -= 1;
+  }
+  return braceDepth === 0 && parenthesisDepth === 0;
+}
+
+function directAssignments(object, key) {
+  const mask = codeMask(object.source);
+  const pattern = new RegExp(`^[\\t ]*${key} = ([^;\\r\\n]+);`, "gmu");
+  return [...object.source.matchAll(pattern)]
+    .filter((match) => {
+      const keyIndex = match.index + match[0].indexOf(key);
+      return mask[keyIndex] && isDirectPosition(object.source, mask, keyIndex);
+    })
+    .map((match) => match[1].trim());
+}
+
+function requireAssignment(object, key, label) {
+  const values = directAssignments(object, key);
+  if (values.length !== 1) {
+    throw new Error(`${label} ${key}: expected 1, found ${values.length}`);
+  }
+  return values[0];
+}
+
+function unquote(value) {
+  return value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
+}
+
+function objectsWithIsa(objects, isa) {
+  return objects.filter((object) => {
+    const values = directAssignments(object, "isa");
+    return values.length === 1 && values[0] === isa;
+  });
+}
+
+function requireObjectById(objects, id, isa, label) {
+  const candidates = objects.filter(
+    (object) => object.id === id && objectsWithIsa([object], isa).length === 1,
+  );
+  if (candidates.length !== 1) {
+    throw new Error(`${label}: expected one ${isa} object ${id}, found ${candidates.length}`);
+  }
+  return candidates[0];
+}
+
+function referencedObjectId(value, label) {
+  const match = /^([A-F0-9]{24})(?:\s|$)/u.exec(value);
+  if (!match) throw new Error(`${label} must reference one PBX object`);
+  return match[1];
+}
+
+function configurationReferences(list, source, mask, label) {
+  const pattern = /^[\t ]*buildConfigurations = \(/gmu;
+  const listMask = codeMask(list.source);
+  const matches = [...list.source.matchAll(pattern)].filter(
+    (match) => {
+      const localIndex = match.index + match[0].indexOf("buildConfigurations");
+      return (
+        mask[list.sourceOffset + localIndex] &&
+        isDirectPosition(list.source, listMask, localIndex)
+      );
+    },
+  );
+  if (matches.length !== 1) {
+    throw new Error(`${label} buildConfigurations: expected 1, found ${matches.length}`);
+  }
+  const openingIndex = list.sourceOffset + matches[0].index + matches[0][0].lastIndexOf("(");
+  const closingIndex = findClosingDelimiter(source, mask, openingIndex, "(", ")", label);
+  const contents = source.slice(openingIndex + 1, closingIndex);
+  const contentsMask = codeMask(contents);
+  return [...contents.matchAll(/[A-F0-9]{24}/gu)]
+    .filter((match) => contentsMask[match.index])
+    .map((match) => match[0]);
+}
+
+function buildSettingsRange(configuration, source, mask, label) {
+  const pattern = /^[\t ]*buildSettings = \{/gmu;
+  const configurationMask = codeMask(configuration.source);
+  const matches = [...configuration.source.matchAll(pattern)].filter(
+    (match) => {
+      const localIndex = match.index + match[0].indexOf("buildSettings");
+      return (
+        mask[configuration.sourceOffset + localIndex] &&
+        isDirectPosition(configuration.source, configurationMask, localIndex)
+      );
+    },
+  );
+  if (matches.length !== 1) {
+    throw new Error(`${label} buildSettings: expected 1, found ${matches.length}`);
+  }
+  const openingIndex =
+    configuration.sourceOffset + matches[0].index + matches[0][0].lastIndexOf("{");
+  const closingIndex = findClosingDelimiter(source, mask, openingIndex, "{", "}", label);
+  return { start: openingIndex + 1, end: closingIndex };
+}
+
+function transformSetting(dictionary, key, before, after, label) {
+  const mask = codeMask(dictionary);
+  const pattern = new RegExp(`^([\\t ]*${key} = )([^;\\r\\n]+)(;[\\t ]*)$`, "gmu");
+  const matches = [...dictionary.matchAll(pattern)].filter(
+    (match) => {
+      const keyIndex = match.index + match[0].indexOf(key);
+      return mask[keyIndex] && isDirectPosition(dictionary, mask, keyIndex);
+    },
+  );
+  if (matches.length !== 1) {
+    throw new Error(`${label} ${key}: expected 1, found ${matches.length}`);
+  }
+  const actual = matches[0][2].trim();
+  if (actual !== before) {
+    throw new Error(`${label} ${key}: expected ${before}, found ${actual}`);
+  }
+  const match = matches[0];
+  return `${dictionary.slice(0, match.index)}${match[1]}${after}${match[3]}${dictionary.slice(match.index + match[0].length)}`;
+}
+
+function requireAbsentSetting(dictionary, key, label) {
+  const mask = codeMask(dictionary);
+  const pattern = new RegExp(`^[\\t ]*${key} = `, "gmu");
+  const count = [...dictionary.matchAll(pattern)].filter(
+    (match) => {
+      const keyIndex = match.index + match[0].indexOf(key);
+      return mask[keyIndex] && isDirectPosition(dictionary, mask, keyIndex);
+    },
+  ).length;
+  if (count !== 0) throw new Error(`${label} ${key}: expected 0, found ${count}`);
+}
+
+function transformConfiguration(dictionary, target, configuration) {
+  const label = `${target} ${configuration}`;
+  let transformed = dictionary;
+  transformed = transformSetting(
+    transformed,
+    "CURRENT_PROJECT_VERSION",
+    "1",
+    RELEASE.build,
+    label,
+  );
+  transformed = transformSetting(transformed, "ENABLE_APP_SANDBOX", "YES", "YES", label);
+  transformed = transformSetting(
+    transformed,
+    "INFOPLIST_KEY_NSHumanReadableCopyright",
+    '""',
+    `"${COPYRIGHT}"`,
+    label,
+  );
+  transformed = transformSetting(
+    transformed,
+    "MARKETING_VERSION",
+    "1.0",
+    RELEASE.version,
+    label,
+  );
+
+  if (target === RELEASE.productName) {
+    transformed = transformSetting(
+      transformed,
+      "ENABLE_OUTGOING_NETWORK_CONNECTIONS",
+      "YES",
+      "NO",
+      label,
+    );
+    transformed = transformSetting(
+      transformed,
+      "PRODUCT_BUNDLE_IDENTIFIER",
+      '"com.jovaii.Tab-Shelf"',
+      RELEASE.appBundleIdentifier,
+      label,
+    );
+  } else {
+    requireAbsentSetting(transformed, "ENABLE_OUTGOING_NETWORK_CONNECTIONS", label);
+    transformed = transformSetting(
+      transformed,
+      "PRODUCT_BUNDLE_IDENTIFIER",
+      "com.jovaii.tabshelf.Extension",
+      RELEASE.extensionBundleIdentifier,
+      label,
+    );
+  }
+  return transformed;
+}
+
+function prepareProjectSettings(source) {
+  const { objects, mask } = parsePBXObjects(source);
+  const targets = objectsWithIsa(objects, "PBXNativeTarget");
+  if (targets.length !== 2) {
+    throw new Error(`native targets: expected 2, found ${targets.length}`);
+  }
+
+  const replacements = [];
+  for (const [targetName, productType] of [
+    [RELEASE.productName, "com.apple.product-type.application"],
+    [`${RELEASE.productName} Extension`, "com.apple.product-type.app-extension"],
+  ]) {
+    const namedTargets = targets.filter(
+      (target) => unquote(requireAssignment(target, "name", "native target")) === targetName,
+    );
+    if (namedTargets.length !== 1) {
+      throw new Error(`${targetName} native targets: expected 1, found ${namedTargets.length}`);
+    }
+    const target = namedTargets[0];
+    const actualProductType = unquote(requireAssignment(target, "productType", targetName));
+    if (actualProductType !== productType) {
+      throw new Error(`${targetName} productType: expected ${productType}, found ${actualProductType}`);
+    }
+    const listId = referencedObjectId(
+      requireAssignment(target, "buildConfigurationList", targetName),
+      `${targetName} buildConfigurationList`,
+    );
+    const list = requireObjectById(objects, listId, "XCConfigurationList", targetName);
+    const references = configurationReferences(list, source, mask, `${targetName} configurations`);
+    if (references.length !== 2 || new Set(references).size !== 2) {
+      throw new Error(`${targetName} configurations: expected Debug and Release exactly once`);
+    }
+    const configurations = references.map((id) =>
+      requireObjectById(objects, id, "XCBuildConfiguration", `${targetName} configuration`),
+    );
+    const namedConfigurations = configurations.map((configuration) => ({
+      configuration,
+      name: unquote(requireAssignment(configuration, "name", `${targetName} configuration`)),
+    }));
+    if (
+      namedConfigurations.filter(({ name }) => name === "Debug").length !== 1 ||
+      namedConfigurations.filter(({ name }) => name === "Release").length !== 1
+    ) {
+      throw new Error(`${targetName} configurations: expected Debug and Release exactly once`);
+    }
+
+    for (const { configuration, name } of namedConfigurations) {
+      const range = buildSettingsRange(configuration, source, mask, `${targetName} ${name}`);
+      replacements.push({
+        ...range,
+        contents: transformConfiguration(source.slice(range.start, range.end), targetName, name),
+      });
+    }
+  }
+
+  let prepared = source;
+  for (const replacement of replacements.sort((left, right) => right.start - left.start)) {
+    prepared = `${prepared.slice(0, replacement.start)}${replacement.contents}${prepared.slice(replacement.end)}`;
+  }
+  return prepared;
+}
+
+function validateTemplate(label, contents) {
+  if (contents.length === 0) throw new Error(`tracked ${label} must not be empty`);
+  const source = contents.toString("utf8");
+  for (const [anchor, count, anchorLabel] of TEMPLATE_ANCHORS[label]) {
+    replaceExact(source, anchor, anchor, count, `tracked ${label} ${anchorLabel}`);
   }
 }
 
-function validateGeneratedProjectStructure(source) {
-  const exactValues = [
-    ["isa = PBXNativeTarget;", 2, "native targets"],
-    ['productType = "com.apple.product-type.application";', 1, "native App targets"],
-    [
-      'productType = "com.apple.product-type.app-extension";',
-      1,
-      "native extension targets",
-    ],
-    ["PRODUCT_BUNDLE_IDENTIFIER = ", 4, "bundle identifier setting keys"],
-    ["ENABLE_OUTGOING_NETWORK_CONNECTIONS = ", 2, "outgoing network setting keys"],
-    ["ENABLE_APP_SANDBOX = ", 4, "App Sandbox setting keys"],
-    ["MARKETING_VERSION = ", 4, "marketing version setting keys"],
-    ["CURRENT_PROJECT_VERSION = ", 4, "build version setting keys"],
-    [
-      "INFOPLIST_KEY_NSHumanReadableCopyright = ",
-      4,
-      "copyright setting keys",
-    ],
-  ];
+function sameFile(left, right) {
+  return left.dev === right.dev && left.ino === right.ino;
+}
 
-  for (const [value, count, label] of exactValues) {
-    replaceExact(source, value, value, count, label);
+function openVerifiedFile(path, label) {
+  const inspected = fs.lstatSync(path);
+  if (inspected.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symbolic link: ${path}`);
   }
+  if (!inspected.isFile()) throw new Error(`${label} must be a regular file: ${path}`);
+
+  let descriptor;
+  try {
+    descriptor = fs.openSync(
+      path,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+    );
+  } catch (error) {
+    throw new Error(
+      `${label} changed during validation or is a symbolic link: ${error.message}`,
+      { cause: error },
+    );
+  }
+
+  try {
+    const opened = fs.fstatSync(descriptor);
+    if (!opened.isFile() || !sameFile(inspected, opened)) {
+      throw new Error(`${label} changed during validation: ${path}`);
+    }
+    if (opened.nlink !== 1) {
+      throw new Error(`${label} must not be a hard link: found ${opened.nlink} links`);
+    }
+    return { descriptor, inspected: opened, label, path };
+  } catch (error) {
+    fs.closeSync(descriptor);
+    throw error;
+  }
+}
+
+function openVerifiedFiles(entries) {
+  const handles = new Map();
+  try {
+    for (const entry of entries) {
+      if (!handles.has(entry.path)) {
+        handles.set(entry.path, openVerifiedFile(entry.path, entry.label));
+      }
+    }
+
+    const inodes = new Map();
+    for (const handle of handles.values()) {
+      const key = `${handle.inspected.dev}:${handle.inspected.ino}`;
+      const collision = inodes.get(key);
+      if (collision && collision.path !== handle.path) {
+        throw new Error(`${handle.label} has an inode collision with ${collision.label}`);
+      }
+      inodes.set(key, handle);
+    }
+    return handles;
+  } catch (error) {
+    for (const handle of handles.values()) fs.closeSync(handle.descriptor);
+    throw error;
+  }
+}
+
+function revalidateHandle(handle) {
+  let current;
+  try {
+    current = fs.lstatSync(handle.path);
+  } catch (error) {
+    throw new Error(`${handle.label} changed during validation: ${handle.path}`, { cause: error });
+  }
+  if (current.isSymbolicLink() || !current.isFile() || !sameFile(current, handle.inspected)) {
+    throw new Error(`${handle.label} changed during validation: ${handle.path}`);
+  }
+  if (current.nlink !== 1) {
+    throw new Error(`${handle.label} must not be a hard link: found ${current.nlink} links`);
+  }
+}
+
+let temporarySequence = 0;
+
+function unusedSibling(destination, kind) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    temporarySequence += 1;
+    const candidate = join(
+      dirname(destination),
+      `.tab-shelf-${kind}-${process.pid}-${temporarySequence}`,
+    );
+    try {
+      fs.lstatSync(candidate);
+    } catch (error) {
+      if (error.code === "ENOENT") return candidate;
+      throw error;
+    }
+  }
+  throw new Error(`unable to reserve a ${kind} path beside ${destination}`);
+}
+
+function unlinkTemporary(path) {
+  if (!path) return;
+  try {
+    const status = fs.lstatSync(path);
+    if (!status.isFile() || status.isSymbolicLink()) {
+      throw new Error(`temporary transaction path is unsafe: ${path}`);
+    }
+    fs.unlinkSync(path);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+}
+
+function stageOperation(operation) {
+  const stage = unusedSibling(operation.destination, "stage");
+  let descriptor;
+  try {
+    descriptor = fs.openSync(
+      stage,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        (fs.constants.O_NOFOLLOW ?? 0),
+      operation.handle.inspected.mode & 0o777,
+    );
+    fs.writeFileSync(descriptor, operation.contents);
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor);
+    descriptor = undefined;
+    return { ...operation, stage };
+  } catch (error) {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+    unlinkTemporary(stage);
+    throw error;
+  }
+}
+
+function commitTransaction(operations, allHandles) {
+  for (const handle of allHandles.values()) revalidateHandle(handle);
+
+  const staged = [];
+  try {
+    for (const operation of operations) staged.push(stageOperation(operation));
+  } catch (error) {
+    for (const operation of staged) unlinkTemporary(operation.stage);
+    throw new Error(`transaction staging failed: ${error.message}`, { cause: error });
+  }
+
+  const committed = [];
+  try {
+    for (const operation of staged) {
+      revalidateHandle(operation.handle);
+      const backup = unusedSibling(operation.destination, "backup");
+      fs.renameSync(operation.destination, backup);
+      const record = { ...operation, backup, installed: false };
+      committed.push(record);
+      fs.renameSync(operation.stage, operation.destination);
+      record.stage = undefined;
+      record.installed = true;
+    }
+  } catch (error) {
+    const rollbackErrors = [];
+    for (const record of committed.reverse()) {
+      try {
+        fs.renameSync(record.backup, record.destination);
+        record.backup = undefined;
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError.message);
+      }
+    }
+    for (const operation of staged) {
+      try {
+        unlinkTemporary(operation.stage);
+      } catch (cleanupError) {
+        rollbackErrors.push(cleanupError.message);
+      }
+    }
+    const rollbackMessage =
+      rollbackErrors.length === 0 ? "" : `; rollback failed: ${rollbackErrors.join("; ")}`;
+    throw new Error(`transaction failed: ${error.message}${rollbackMessage}`, { cause: error });
+  }
+
+  for (const record of committed) unlinkTemporary(record.backup);
 }
 
 export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}) {
@@ -171,6 +666,7 @@ export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}
   const generatedCandidate = resolve(rootPath, generatedRoot);
   requireInside(rootPath, generatedCandidate, "generated root");
   requireNoSymlinkComponents(rootPath, generatedCandidate, "generated root");
+  requireType(generatedCandidate, "generated root", "directory");
   const resolvedGeneratedRoot = realpathSync(generatedCandidate);
   requireInside(repositoryRoot, resolvedGeneratedRoot, "generated root");
 
@@ -235,95 +731,96 @@ export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}
     "directory",
   );
   const copies = [
-    [join(hostRoot, "ViewController.swift"), generatedController],
-    [
-      join(hostRoot, "Base.lproj/Main.html"),
-      join(appTarget, "Resources/Base.lproj/Main.html"),
-    ],
-    [join(hostRoot, "Style.css"), join(appTarget, "Resources/Style.css")],
-    [join(hostRoot, "Script.js"), join(appTarget, "Resources/Script.js")],
-  ].map(([source, destination], index) => [
-    resolveExistingInside(repositoryRoot, source, `tracked host template ${index + 1}`, "file"),
-    resolveExistingInside(repositoryRoot, destination, `generated host resource ${index + 1}`, "file"),
-  ]);
+    {
+      label: "ViewController.swift",
+      source: join(hostRoot, "ViewController.swift"),
+      destination: generatedController,
+    },
+    {
+      label: "Main.html",
+      source: join(hostRoot, "Base.lproj/Main.html"),
+      destination: join(appTarget, "Resources/Base.lproj/Main.html"),
+    },
+    {
+      label: "Style.css",
+      source: join(hostRoot, "Style.css"),
+      destination: join(appTarget, "Resources/Style.css"),
+    },
+    {
+      label: "Script.js",
+      source: join(hostRoot, "Script.js"),
+      destination: join(appTarget, "Resources/Script.js"),
+    },
+  ].map(({ label, source, destination }, index) => ({
+    label,
+    source: resolveExistingInside(
+      repositoryRoot,
+      source,
+      `tracked host template ${index + 1}`,
+      "file",
+    ),
+    destination: resolveExistingInside(
+      repositoryRoot,
+      destination,
+      `generated host resource ${index + 1}`,
+      "file",
+    ),
+  }));
 
   // Requiring the generated icon establishes that templates are copied into Apple's
   // existing Resources directory without replacing or relocating the icon.
   void icon;
 
-  let preparedProject = readFileSync(projectSettings, "utf8");
-  validateGeneratedProjectStructure(preparedProject);
-  preparedProject = replaceExact(
-    preparedProject,
-    GENERATED_APP_IDENTIFIER,
-    `PRODUCT_BUNDLE_IDENTIFIER = ${RELEASE.appBundleIdentifier};`,
-    2,
-    "generated App bundle identifiers",
-  );
-  preparedProject = replaceExact(
-    preparedProject,
-    GENERATED_EXTENSION_IDENTIFIER,
-    `PRODUCT_BUNDLE_IDENTIFIER = ${RELEASE.extensionBundleIdentifier};`,
-    2,
-    "generated extension bundle identifiers",
-  );
-  preparedProject = replaceExact(
-    preparedProject,
-    "ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;",
-    "ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;",
-    2,
-    "outgoing network build settings",
-  );
-  preparedProject = replaceExact(
-    preparedProject,
-    "MARKETING_VERSION = 1.0;",
-    `MARKETING_VERSION = ${RELEASE.version};`,
-    4,
-    "generated marketing versions",
-  );
-  preparedProject = replaceExact(
-    preparedProject,
-    "CURRENT_PROJECT_VERSION = 1;",
-    `CURRENT_PROJECT_VERSION = ${RELEASE.build};`,
-    4,
-    "generated build versions",
-  );
-  preparedProject = replaceExact(
-    preparedProject,
-    'INFOPLIST_KEY_NSHumanReadableCopyright = "";',
-    `INFOPLIST_KEY_NSHumanReadableCopyright = "${COPYRIGHT}";`,
-    4,
-    "generated copyright settings",
-  );
+  const fileEntries = [
+    { path: projectSettings, label: "generated project settings" },
+    { path: icon, label: "generated App icon" },
+    ...copies.flatMap(({ label, source, destination }) => [
+      { path: source, label: `tracked ${label}` },
+      { path: destination, label: `generated ${label}` },
+    ]),
+  ];
+  const handles = openVerifiedFiles(fileEntries);
 
-  const originalController = readFileSync(generatedController, "utf8");
-  replaceExact(
-    originalController,
-    GENERATED_SWIFT_IDENTIFIER,
-    `let extensionBundleIdentifier = "${RELEASE.extensionBundleIdentifier}"`,
-    1,
-    "generated Swift extension identifiers",
-  );
+  try {
+    const preparedProject = prepareProjectSettings(
+      fs.readFileSync(handles.get(projectSettings).descriptor, "utf8"),
+    );
+    const originalController = fs.readFileSync(
+      handles.get(generatedController).descriptor,
+      "utf8",
+    );
+    replaceExact(
+      originalController,
+      GENERATED_SWIFT_IDENTIFIER,
+      `let extensionBundleIdentifier = "${RELEASE.extensionBundleIdentifier}"`,
+      1,
+      "generated Swift extension identifiers",
+    );
 
-  const preparedCopies = copies.map(([source, destination]) => ({
-    destination,
-    contents: readFileSync(source),
-  }));
-  const controllerTemplate = preparedCopies.find(
-    ({ destination }) => destination === generatedController,
-  ).contents.toString("utf8");
-  replaceExact(
-    controllerTemplate,
-    `let extensionBundleIdentifier = "${RELEASE.extensionBundleIdentifier}"`,
-    `let extensionBundleIdentifier = "${RELEASE.extensionBundleIdentifier}"`,
-    1,
-    "tracked Swift extension identifiers",
-  );
-  validatePreparedProject(preparedProject);
+    const preparedCopies = copies.map(({ label, source, destination }) => ({
+      label,
+      destination,
+      contents: fs.readFileSync(handles.get(source).descriptor),
+    }));
+    for (const { label, contents } of preparedCopies) validateTemplate(label, contents);
 
-  writeFileSync(projectSettings, preparedProject);
-  for (const { destination, contents } of preparedCopies) {
-    writeFileSync(destination, contents);
+    commitTransaction(
+      [
+        {
+          destination: projectSettings,
+          contents: Buffer.from(preparedProject),
+          handle: handles.get(projectSettings),
+        },
+        ...preparedCopies.map(({ destination, contents }) => ({
+          destination,
+          contents,
+          handle: handles.get(destination),
+        })),
+      ],
+      handles,
+    );
+  } finally {
+    for (const handle of handles.values()) fs.closeSync(handle.descriptor);
   }
 
   return Object.freeze({ project, appTarget, extensionTarget });
