@@ -13,11 +13,9 @@ Update the breakdown and estimate before continuing if the task scope changes ma
 ## Product boundary
 
 - Build only for Safari on the current Mac.
-- Do not launch or test another browser.
-- Do not read, copy, translate, adapt, or migrate predecessor project materials.
-- Keep predecessor identities, identifiers, history, and notices out of this repository and its generated products.
+- Use only source, artwork, documentation, identifiers, and release history authored for Tab Shelf.
 - Use no third-party runtime packages, fonts, images, or icon packs.
-- Use only the new preference schema and bundle identifiers defined in the approved design.
-- Do not import earlier application settings.
+- Use only `tabShelf.preferences.v1`, `com.jovaii.tabshelf`, and `com.jovaii.tabshelf.extension`.
+- Reject undocumented preference schemas instead of importing them.
 - Do not mutate a GitHub remote until the final publication gate.
 - Use full Xcode for the official native container; temporary Safari installation is acceptable during core development.

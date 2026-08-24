@@ -3,6 +3,7 @@ import {
   mkdtempSync,
   mkdirSync,
   rmSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,6 +13,7 @@ import test from "node:test";
 import {
   assertNoDependencyTrees,
   compareWholeFileHashes,
+  listTrackedFiles,
   scanTerms,
 } from "../scripts/audit-repository.mjs";
 
@@ -57,6 +59,18 @@ test("detects a complete tracked file copied from a comparison root", () => {
     assert.equal(matches.length, 1);
     assert.equal(matches[0].candidatePath, "module.mjs");
     assert.equal(matches[0].comparisonPath, "different-name.js");
+  });
+});
+
+test("ignores tracked files deleted from the current working tree", () => {
+  withTemporaryDirectory((root) => {
+    writeFileSync(join(root, "kept.txt"), "kept\n");
+    writeFileSync(join(root, "removed.txt"), "removed\n");
+    assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
+    assert.equal(spawnSync("git", ["-C", root, "add", "kept.txt", "removed.txt"]).status, 0);
+    unlinkSync(join(root, "removed.txt"));
+
+    assert.deepEqual(listTrackedFiles(root), ["kept.txt"]);
   });
 });
 

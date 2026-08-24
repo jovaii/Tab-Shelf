@@ -65,7 +65,17 @@ export function sha256(value) {
 
 export function listTrackedFiles(root) {
   const output = runGit(root, ["ls-files", "--cached", "--others", "--exclude-standard", "-z"]);
-  return [...new Set(output.toString("utf8").split("\0").filter(Boolean))].sort();
+  return [...new Set(output.toString("utf8").split("\0").filter(Boolean))]
+    .filter((path) => {
+      try {
+        resolveContainedFile(root, path);
+        return true;
+      } catch (error) {
+        if (isMissing(error)) return false;
+        throw error;
+      }
+    })
+    .sort();
 }
 
 function scanText(path, content, normalizedTerms) {

@@ -40,3 +40,45 @@ test("documents the Safari-only and privacy boundaries", () => {
   assert.match(readme, /No telemetry/);
   assert.match(readme, /Apache License 2\.0/);
 });
+
+test("publishes complete English setup, theme, build, and removal guidance", () => {
+  const readme = readFileSync("README.md", "utf8");
+
+  for (const heading of [
+    "Features",
+    "Privacy",
+    "Temporary Safari installation",
+    "Theme Studio",
+    "Local WebKit preview",
+    "Official macOS App",
+    "Uninstall",
+    "License",
+  ]) {
+    assert.match(readme, new RegExp(`^## ${heading}$`, "m"));
+  }
+  assert.match(readme, /com\.jovaii\.tabshelf/);
+  assert.match(readme, /tab-shelf-preferences-v1\.json/);
+  assert.match(readme, /THIRD_PARTY_NOTICES\.md/);
+});
+
+test("records the 1.0.0 release and current acceptance boundary", () => {
+  const changelog = readFileSync("CHANGELOG.md", "utf8");
+  const acceptance = readFileSync("docs/testing/release-acceptance.md", "utf8");
+
+  assert.match(changelog, /^## \[1\.0\.0\] - 2026-08-24$/m);
+  assert.match(acceptance, /^# Tab Shelf 1\.0\.0 Release Acceptance$/m);
+  assert.match(acceptance, /74\/74 automated tests passed/);
+  assert.match(acceptance, /Full Xcode is required/);
+  assert.match(acceptance, /Temporary Safari profile acceptance remains manual/);
+});
+
+test("exposes dependency-free repeatable development commands", () => {
+  const manifest = JSON.parse(readFileSync("package.json", "utf8"));
+
+  assert.equal(manifest.engines.node, ">=24");
+  assert.equal(manifest.scripts.check, "npm test && npm run audit");
+  assert.match(manifest.scripts.preview, /serve-preview\.mjs/);
+  assert.match(manifest.scripts["render:preview"], /render-preview\.swift/);
+  assert.equal(manifest.scripts["package:macos"], "bash scripts/package-macos.sh");
+  assert.equal(manifest.scripts["install:macos"], "bash scripts/install-macos.sh");
+});
