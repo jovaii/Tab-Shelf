@@ -318,7 +318,7 @@ git diff --check
 
 Expected: the worktree is clean after planned commits, 86/86 tests pass, and the audit remains zero for dependencies, prohibited identity text, and whole-file matches.
 
-- [ ] **Step 6: Sync the verified commits to public GitHub without force-push**
+- [x] **Step 6: Sync the verified commits to public GitHub without force-push**
 
 Clone `https://github.com/jovaii/Tab-Shelf.git` into a validated `/private/tmp/tab-shelf-github-sync.*` directory, confirm remote `main` has not moved unexpectedly, apply the new local commits, run `npm run check` inside the clone, and push `main:main` without `--force`.
 
