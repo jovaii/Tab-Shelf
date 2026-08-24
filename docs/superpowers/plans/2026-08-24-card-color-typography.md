@@ -189,7 +189,7 @@ Run: `npm run install:macos`
 
 Expected: `/Applications/Tab Shelf.app` is installed and `pluginkit` lists one `com.jovaii.tabshelf.extension` path under `/Applications`.
 
-- [ ] **Step 3: Commit and push the verified English source release**
+- [x] **Step 3: Commit and push the verified English source release**
 
 ```bash
 git add extension tests README.md docs
