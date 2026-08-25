@@ -103,6 +103,39 @@ test("keeps account-owned prerequisites value-free and preserves manual submissi
   assert.match(checklist, /Do not record[^\n]*(?:membership|agreement|bank|tax|identifier|credential)[^\n]*values/iu);
 });
 
+test("separates completed local preparation from Apple-account delivery gates", () => {
+  const checklist = source("docs/app-store/submission-checklist.md");
+
+  for (const completed of [
+    /\[x\][^\n]*314\/314 automated tests/iu,
+    /\[x\][^\n]*exactly one Tab Shelf Safari extension registration/iu,
+    /\[x\][^\n]*real Safari/iu,
+    /\[x\][^\n]*screenshot package is prepared/iu,
+    /\[x\][^\n]*privacy answers match/iu,
+    /\[x\][^\n]*review notes are prepared/iu,
+  ]) {
+    assert.match(checklist, completed);
+  }
+
+  for (const appleGate of [
+    /\[ \][^\n]*active Apple Developer Program membership/iu,
+    /\[ \][^\n]*Paid Apps Agreement/iu,
+    /\[ \][^\n]*release archive is validated/iu,
+    /\[ \][^\n]*final screenshots are uploaded/iu,
+    /\[ \][^\n]*Submit for Review/iu,
+  ]) {
+    assert.match(checklist, appleGate);
+  }
+});
+
+test("prepares an exact Mac App Store primary screenshot", () => {
+  const png = readFileSync("docs/assets/tab-shelf-hero.png");
+
+  assert.equal(png.subarray(1, 4).toString("ascii"), "PNG");
+  assert.equal(png.readUInt32BE(16), 1440);
+  assert.equal(png.readUInt32BE(20), 900);
+});
+
 test("keeps every App Store document English-only and release-safe", () => {
   const paths = [
     "docs/app-store/listing.md",

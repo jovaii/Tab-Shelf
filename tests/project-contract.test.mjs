@@ -202,15 +202,18 @@ test("records the 1.0.0 release and current acceptance boundary", () => {
 
   assert.match(changelog, /^## \[1\.0\.0\] - 2026-08-24$/m);
   assert.match(acceptance, /^# Tab Shelf 1\.0\.0 Release Acceptance$/m);
-  assert.match(acceptance, /312\/312 automated tests passed/);
+  assert.match(acceptance, /314\/314 automated tests passed/);
   assert.match(acceptance, /Full Xcode is required/);
   assert.match(acceptance, /Xcode 26\.6/);
   assert.match(acceptance, /com\.jovaii\.tabshelf\.extension/);
   assert.match(acceptance, /ad-hoc/);
   assert.match(acceptance, /\/Applications\/Tab Shelf\.app/);
-  assert.match(acceptance, /Temporary Safari profile acceptance remains manual/);
+  assert.match(acceptance, /Real Safari profile acceptance was completed and confirmed by the product owner/u);
   assert.match(acceptance, /exactly one registered Tab Shelf extension/u);
-  assert.match(progress, /`QA-IN-PROGRESS`/u);
+  assert.match(progress, /`DEPLOY-PREFLIGHT`/u);
+  assert.match(progress, /Owner-confirmed Safari acceptance is complete/u);
+  assert.match(progress, /Apple membership compliance submission was accepted/u);
+  assert.doesNotMatch(progress, /@|passport|national ID/iu);
   assert.match(progress, /GitHub source and metadata synchronization is complete/u);
   assert.match(progress, /Apple Distribution archive/u);
 });
