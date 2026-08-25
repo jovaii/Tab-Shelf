@@ -33,6 +33,7 @@ test("settings page exposes the complete Version 1 controls", () => {
     "reset-theme",
     "export-theme",
     "import-theme",
+    "reset-workspace",
   ]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
@@ -88,4 +89,16 @@ test("shelf loads and applies saved preferences", () => {
 
   assert.match(javascript, /gateway\.getPreferences\(\)/);
   assert.match(javascript, /applyTheme\(document\.documentElement, preferences\)/);
+});
+
+test("settings resets workspace independently from appearance", () => {
+  const javascript = source("extension/settings.mjs");
+
+  assert.match(javascript, /resetWorkspace:\s*document\.querySelector\("#reset-workspace"\)/u);
+  assert.match(javascript, /gateway\.resetWorkspace\(\)/u);
+  assert.match(javascript, /Workspace layout reset/u);
+  assert.match(
+    javascript,
+    /controls\.resetTheme\.addEventListener\("click",\s*\(\)\s*=>\s*selectPreset\("quiet-neutral"\)\)/u,
+  );
 });

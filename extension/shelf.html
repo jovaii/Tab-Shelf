@@ -60,6 +60,22 @@
         <p class="product-credit">Tab Shelf by James Li</p>
       </footer>
     </main>
+
+    <dialog id="category-dialog" class="category-dialog" aria-labelledby="category-dialog-title">
+      <form method="dialog" id="category-form" class="category-dialog__form">
+        <p class="category-dialog__eyebrow">Workspace</p>
+        <h2 id="category-dialog-title">New category</h2>
+        <label class="category-dialog__field" for="category-name">
+          <span>Category name</span>
+          <input id="category-name" name="category-name" autocomplete="off" maxlength="40" required>
+        </label>
+        <p id="category-error" class="category-dialog__error" role="alert"></p>
+        <div class="category-dialog__actions">
+          <button id="category-cancel" class="secondary-action" type="button">Cancel</button>
+          <button id="category-submit" class="primary-action" type="submit">Create category</button>
+        </div>
+      </form>
+    </dialog>
     <script type="module" src="shelf.mjs"></script>
   </body>
 </html>

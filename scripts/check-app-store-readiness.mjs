@@ -51,7 +51,7 @@ const APPROVED_XCODE_PROFILE = Object.freeze({
   lastSwiftUpdateCheck: "2660",
   lastUpgradeCheck: "2660",
 });
-const APPROVED_PROFILE_SEAL = "aa445372a9b983c11d5b862f0845ba700b6c3a17257c94e2faa14b9c074d0120";
+const APPROVED_PROFILE_SEAL = "623165eb5c1b38e52c548e6df677806ae5b6d7c01746b465250af8cdb987159d";
 const APPROVED_EXTENSION_PATHS = Object.freeze([
   "background.js", "core", "core/classifier.mjs", "core/preferences.mjs", "core/tab-model.mjs",
   "core/workspace-actions.mjs", "core/workspace.mjs", "icons",

@@ -371,7 +371,7 @@ export function applyWorkspaceAction(value, action) {
 
 Ensure a cross-category card move removes the domain from every old order, inserts it once at the requested location, and creates/replaces its permanent assignment. Category creation inserts before `system:other`; deletion removes assignments/order/collapse state; reset returns only defaults.
 
-- [ ] **Step 4: Run focused and full tests**
+- [x] **Step 4: Run focused and full tests**
 
 Run: `node --test tests/workspace-actions.test.mjs tests/workspace.test.mjs && npm test`
 
@@ -662,16 +662,19 @@ git commit -m "feat: add accessible card sorting"
 
 **Files:**
 - Modify: `extension/shelf.mjs`
+- Modify: `extension/shelf.html`
 - Modify: `extension/settings.html`
 - Modify: `extension/settings.mjs`
 - Modify: `tests/shelf-contract.test.mjs`
 - Modify: `tests/settings-contract.test.mjs`
+- Modify: `scripts/app-store-release-profile.mjs`
+- Modify: `scripts/check-app-store-readiness.mjs`
 
 **Interfaces:**
 - Consumes: gateway workspace methods, `buildWorkspaceView()`, `applyWorkspaceAction()`, `createSortableController()`, and view typed actions.
 - Produces: latest-value action commits, rollback on save failure, deferred refresh during drag, storage-change refresh, category editing dialog, and separate workspace reset.
 
-- [ ] **Step 1: Write failing orchestration contracts**
+- [x] **Step 1: Write failing orchestration contracts**
 
 Add source contracts that require all four parallel reads, the shared typed action boundary, workspace error messages, deferred refresh state, storage subscription, New category handler, and separate settings reset.
 
@@ -691,13 +694,13 @@ test("shelf loads, renders, mutates, and recovers the separate workspace", () =>
 
 Settings contracts must require `id="reset-workspace"`, `gateway.resetWorkspace()`, `Workspace layout reset`, and verify Reset appearance continues to call only the theme path.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 Run: `node --test tests/shelf-contract.test.mjs tests/settings-contract.test.mjs`
 
 Expected: FAIL because orchestration/reset contracts are absent.
 
-- [ ] **Step 3: Implement latest-value commits and rollback**
+- [x] **Step 3: Implement latest-value commits and rollback**
 
 ```js
 async function commitWorkspaceAction(action) {

@@ -85,3 +85,33 @@ test("application modules never inject HTML strings", () => {
 
   assert.doesNotMatch(javascript, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/iu);
 });
+
+test("shelf loads, renders, mutates, and recovers the separate workspace", () => {
+  const javascript = source("extension/shelf.mjs");
+
+  assert.match(javascript, /gateway\.getWorkspace\(\)/u);
+  assert.match(javascript, /buildWorkspaceView\(/u);
+  assert.match(javascript, /applyWorkspaceAction\(/u);
+  assert.match(javascript, /gateway\.setWorkspace\(/u);
+  assert.match(javascript, /Workspace layout could not be saved\./u);
+  assert.match(javascript, /Saved workspace layout could not be loaded\./u);
+  assert.match(javascript, /dragActive/u);
+  assert.match(javascript, /pendingRefresh/u);
+  assert.match(javascript, /onWorkspaceChanged/u);
+  assert.match(javascript, /createSortableController\(/u);
+});
+
+test("shelf owns one bounded category editor without inline handlers", () => {
+  const html = source("extension/shelf.html");
+  const javascript = source("extension/shelf.mjs");
+
+  assert.match(html, /<dialog id="category-dialog"/u);
+  assert.match(html, /<form[^>]*method="dialog"[^>]*id="category-form"/u);
+  assert.match(html, /id="category-name"[^>]*maxlength="40"/u);
+  assert.match(html, /id="category-cancel"/u);
+  assert.match(javascript, /onCreateCategory/u);
+  assert.match(javascript, /onEditCategory/u);
+  assert.match(javascript, /create-category/u);
+  assert.match(javascript, /rename-category/u);
+  assert.doesNotMatch(html, /on(?:click|load|error)=/iu);
+});

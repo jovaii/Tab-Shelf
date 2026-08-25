@@ -46,6 +46,7 @@ const controls = Object.freeze({
   contrastBoost: document.querySelector("#contrast-boost"),
   accentColor: document.querySelector("#accent-color"),
   resetTheme: document.querySelector("#reset-theme"),
+  resetWorkspace: document.querySelector("#reset-workspace"),
   exportTheme: document.querySelector("#export-theme"),
   importTheme: document.querySelector("#import-theme"),
   openShelf: document.querySelector("#open-shelf"),
@@ -451,6 +452,16 @@ function bindControls() {
   controls.exportTheme.addEventListener("click", exportTheme);
   controls.importTheme.addEventListener("change", importTheme);
   controls.resetTheme.addEventListener("click", () => selectPreset("quiet-neutral"));
+  controls.resetWorkspace.addEventListener("click", async () => {
+    if (!window.confirm("Reset every custom category and saved tab position? Your theme will stay unchanged.")) return;
+    setStatus("Resetting tab layout…");
+    try {
+      await gateway.resetWorkspace();
+      setStatus("Workspace layout reset");
+    } catch {
+      setStatus("Safari could not reset the workspace layout.", "error");
+    }
+  });
   controls.openShelf.addEventListener("click", async () => {
     try {
       await gateway.openShelf();
