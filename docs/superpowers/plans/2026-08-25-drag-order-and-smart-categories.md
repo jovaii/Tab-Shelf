@@ -19,6 +19,7 @@
 - Permit at most 24 custom groups; normalize names to 1–40 visible characters and compare them case-insensitively.
 - Bound retained domain records to 2,048 and reject unknown keys, unsafe prototypes, duplicates, and oversized serialized workspaces.
 - Maintain zero runtime dependencies and safe text-only DOM construction.
+- Synchronize every changed shipping extension path and SHA-256 with `scripts/app-store-release-profile.mjs`, the approved path lists, and the recomputed profile seal before running the full test suite.
 - Use test-driven development for every behavior change and commit each independently testable task.
 - Every human approval document must retain its Markdown source, Web Mind Map, and Web One Slide views.
 
@@ -54,6 +55,8 @@
 **Files:**
 - Create: `extension/core/classifier.mjs`
 - Create: `tests/classifier.test.mjs`
+- Modify: `scripts/app-store-release-profile.mjs`
+- Modify: `scripts/check-app-store-readiness.mjs`
 
 **Interfaces:**
 - Consumes: a normalized domain group shaped as `{ key: string, tabs: Array<{ title: string }> }`.

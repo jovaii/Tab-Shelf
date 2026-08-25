@@ -1,5 +1,6 @@
 const executableSourceDigests = Object.freeze({
   "extension/background.js": "e130c8f6e9ee5dfc4a57c7616a72a54f8b77b2d44e7885d239a2241b9cae9988",
+  "extension/core/classifier.mjs": "85699738ab9252a3bcc2712c292728982c0c2197d4d19bd2b1669e130d129b13",
   "extension/core/preferences.mjs": "a4e00ce025da7f4ffeec13798d876eac8aabfa62261d19bfcb07ad3c703f6b86",
   "extension/core/tab-model.mjs": "c5e2c55a590fbdbf2400f0fa9fc50c958bbca929020007df918d78fa7c54c249",
   "extension/platform/safari-gateway.mjs": "d8180aa9563a819d90b7158603987c97250353ba07e9041d5e6381ac26958806",
@@ -27,6 +28,7 @@ function extensionFile(digest) {
 const extensionTree = Object.freeze({
   "background.js": extensionFile("e130c8f6e9ee5dfc4a57c7616a72a54f8b77b2d44e7885d239a2241b9cae9988"),
   core: Object.freeze({ type: "directory", modeClass: "directory" }),
+  "core/classifier.mjs": extensionFile("85699738ab9252a3bcc2712c292728982c0c2197d4d19bd2b1669e130d129b13"),
   "core/preferences.mjs": extensionFile("a4e00ce025da7f4ffeec13798d876eac8aabfa62261d19bfcb07ad3c703f6b86"),
   "core/tab-model.mjs": extensionFile("c5e2c55a590fbdbf2400f0fa9fc50c958bbca929020007df918d78fa7c54c249"),
   icons: Object.freeze({ type: "directory", modeClass: "directory" }),
