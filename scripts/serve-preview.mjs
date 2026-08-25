@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const SCRIPT_ROOT = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(SCRIPT_ROOT, "..");
 const EXTENSION_ROOT = resolve(PROJECT_ROOT, "extension");
+const APPROVAL_ROOT = resolve(PROJECT_ROOT, "docs/approvals");
 const FIXTURE_PATH = resolve(PROJECT_ROOT, "tests/fixtures/tabs.json");
 const RUNTIME_PATH = resolve(SCRIPT_ROOT, "preview-runtime.js");
 const PREVIEW_SCRIPTS = [
@@ -45,11 +46,19 @@ function parseArguments(argumentsList) {
   return options;
 }
 
-function staticPath(pathname) {
-  const relative = decodeURIComponent(pathname === "/" ? "/shelf.html" : pathname).replace(/^\/+/, "");
-  const absolute = resolve(EXTENSION_ROOT, relative);
-  if (!absolute.startsWith(`${EXTENSION_ROOT}${sep}`)) return null;
+function pathInside(root, relative) {
+  const absolute = resolve(root, relative);
+  if (!absolute.startsWith(`${root}${sep}`)) return null;
   return absolute;
+}
+
+export function resolveStaticPath(pathname) {
+  const relative = decodeURIComponent(pathname === "/" ? "/shelf.html" : pathname).replace(/^\/+/, "");
+  const approvalPrefix = "docs/approvals/";
+  if (relative.startsWith(approvalPrefix)) {
+    return pathInside(APPROVAL_ROOT, relative.slice(approvalPrefix.length));
+  }
+  return pathInside(EXTENSION_ROOT, relative);
 }
 
 function headers(contentType) {
@@ -82,7 +91,7 @@ async function respond(request, response) {
       return;
     }
 
-    const path = staticPath(requestUrl.pathname);
+    const path = resolveStaticPath(requestUrl.pathname);
     if (!path) {
       response.writeHead(404, headers("text/plain; charset=utf-8"));
       response.end("Not found\n");

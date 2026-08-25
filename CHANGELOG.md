@@ -6,6 +6,10 @@ All notable changes to Tab Shelf are recorded here.
 
 ### Added
 
+- Deterministic local categories with persistent manual assignments for domain cards.
+- Dedicated card and category drag handles with equivalent keyboard move menus.
+- Custom category creation, rename, collapse, reorder, safe delete, and a separate tab-layout reset.
+- A bounded `tabShelf.workspace.v1` local workspace schema independent from theme preferences and exports.
 - Safari new-tab shelf with uniform domain cards, duplicate detection, activation, and scoped close actions.
 - Toolbar badge and local popover for the current web-tab count.
 - Quiet Neutral, Mist Teal, Ice Lavender, Neon Bloom, and Storm Horizon themes.

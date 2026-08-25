@@ -108,7 +108,9 @@ test("presents the public product decision without an invented store listing", (
 test("publishes complete privacy, support, and contribution policies", () => {
   const policies = new Map([
     ["PRIVACY.md", [
-      /open-tab titles, URLs, favicons, preferences, and optional user-selected backgrounds/u,
+      /open-tab titles, URLs, favicons, appearance preferences, workspace organization, and optional user-selected backgrounds/u,
+      /custom category names, domain assignments, card and category order, and collapsed state/u,
+      /tabShelf\.workspace\.v1/u,
       /processed locally/u,
       /does not collect, transmit, sell, or share/u,
       /makes no first-party network requests/u,
@@ -120,6 +122,8 @@ test("publishes complete privacy, support, and contribution policies", () => {
       /Permissions/u,
       /new-tab page/u,
       /Reset appearance/u,
+      /Reset tab layout/u,
+      /does not reset Theme Studio/u,
       /Uninstall/u,
       /private URLs, browsing history, credentials, or personal screenshots/u,
     ]],
@@ -140,6 +144,15 @@ test("publishes complete privacy, support, and contribution policies", () => {
     assert.doesNotMatch(content, /[\p{Script=Han}]/u);
     for (const claim of claims) assert.match(content, claim);
   }
+
+  const readme = readFileSync("README.md", "utf8");
+  assert.match(readme, /automatic local categories/iu);
+  assert.match(readme, /dedicated drag handles/iu);
+  assert.match(readme, /keyboard move menus/iu);
+  assert.match(readme, /24 custom categories/u);
+  assert.match(readme, /40 characters/u);
+  assert.match(readme, /does not reorder Safari's native tabs, windows, or Tab Groups/u);
+  assert.match(readme, /Reset tab layout/u);
 });
 
 test("provides privacy-safe structured GitHub issue forms", () => {
@@ -189,7 +202,7 @@ test("records the 1.0.0 release and current acceptance boundary", () => {
 
   assert.match(changelog, /^## \[1\.0\.0\] - 2026-08-24$/m);
   assert.match(acceptance, /^# Tab Shelf 1\.0\.0 Release Acceptance$/m);
-  assert.match(acceptance, /275\/275 automated tests passed/);
+  assert.match(acceptance, /312\/312 automated tests passed/);
   assert.match(acceptance, /Full Xcode is required/);
   assert.match(acceptance, /Xcode 26\.6/);
   assert.match(acceptance, /com\.jovaii\.tabshelf\.extension/);

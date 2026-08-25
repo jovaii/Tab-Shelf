@@ -795,7 +795,7 @@ npm run render:preview
 
 Expected: PASS for desktop and compact category metrics, move persistence, settings reset, theme preservation, close-tab behavior, and no horizontal overflow. Inspect `build/screenshots/shelf-desktop.png` and `build/screenshots/shelf-compact.png` with `view_image`.
 
-- [ ] **Step 5: Run full verification and commit**
+- [x] **Step 5: Run full verification and commit**
 
 Run: `npm run check`
 
@@ -822,15 +822,15 @@ git commit -m "style: add responsive category workspace"
 - Consumes: the verified source feature and acceptance evidence.
 - Produces: one matching source commit, generated Safari project, installed local App, English public documentation, current GitHub description/topics/visuals, and no binary consumer release.
 
-- [ ] **Step 1: Update public and legal-facing documentation from verified behavior**
+- [x] **Step 1: Update public and legal-facing documentation from verified behavior**
 
 Document automatic categories, permanent manual assignments, drag handles, keyboard alternatives, custom category limits, reset behavior, local storage fields, troubleshooting, no Safari native reorder, and no permission/network change. Change the approval page status from `Design review · Not shipped` only after real Safari acceptance; preserve the original decision content and add a verified outcome line.
 
-- [ ] **Step 2: Update acceptance documents before running them**
+- [x] **Step 2: Update acceptance documents before running them**
 
 Add exact disposable-tab steps for automatic classification, same-category drag, cross-category move, custom create/rename/collapse/delete, relaunch persistence, keyboard moves, concurrent shelf pages, tab activate/close after movement, reset, unchanged appearance, exactly one registration, and strict signatures.
 
-- [ ] **Step 3: Run complete source verification**
+- [x] **Step 3: Run complete source verification**
 
 Run:
 
@@ -841,7 +841,7 @@ npm run render:approval -- 'http://127.0.0.1:4173/docs/approvals/2026-08-25-drag
 
 Expected: all automated tests PASS; approval Mind Map/One Slide PASS at desktop and compact sizes; audit reports dependency 0, prohibited 0, secrets 0.
 
-- [ ] **Step 4: Build, install, and verify the local Safari App**
+- [x] **Step 4: Build, install, and verify the local Safari App**
 
 Run:
 
@@ -859,7 +859,7 @@ Expected: package and generated checks PASS, strict codesign PASS, and exactly o
 
 Open the installed App once, enable the single extension in Safari, execute every step in `docs/testing/local-safari-acceptance.md`, record only privacy-safe results, and do not use personal tab screenshots. Rebuild/reinstall and repeat affected steps for any failure.
 
-- [ ] **Step 6: Generate privacy-safe product visuals and complete documentation verification**
+- [x] **Step 6: Generate privacy-safe product visuals and complete documentation verification**
 
 Use the deterministic preview only. Render desktop and compact screenshots, inspect each with `view_image`, update README/social assets, then run `npm run check` again. All GitHub-visible copy remains English-only.
 

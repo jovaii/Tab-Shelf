@@ -33,11 +33,16 @@ test("publishes the exact one-time paid App Store listing", () => {
 
   for (const feature of [
     /domain cards/u,
+    /automatic local categories/u,
+    /dedicated drag handles/u,
+    /keyboard move menus/u,
+    /custom categories/u,
+    /never reorder Safari's native tabs, windows, or Tab Groups/u,
     /duplicate cleanup/u,
     /tab actions/u,
     /five themes/u,
     /custom backgrounds/u,
-    /preferences stay local/u,
+    /Appearance preferences and workspace organization stay local/u,
     /collect[^.]*nothing/iu,
     /no account/iu,
   ]) {
@@ -65,8 +70,12 @@ test("gives App Review an ordered disposable-tab walkthrough", () => {
     "disposable tabs",
     "new tab",
     "grouping",
-    "close actions",
+    "dedicated handle",
+    "move menus",
+    "custom category",
     "Theme Studio",
+    "Reset tab layout",
+    "close actions",
   ]);
   assert.match(review, /enable Tab Shelf/iu);
 });

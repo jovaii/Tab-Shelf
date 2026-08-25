@@ -34,8 +34,26 @@ function runPreviewRuntime({ href, browser }) {
 }
 
 test("injects preview scripts only for the explicit preview query", async () => {
-  const { injectPreviewBootstrap } = await import("../scripts/serve-preview.mjs");
+  const { injectPreviewBootstrap, resolveStaticPath } = await import("../scripts/serve-preview.mjs");
   const html = '<main></main><script type="module" src="shelf.mjs"></script>';
+
+  assert.match(resolveStaticPath("/shelf.html"), /\/extension\/shelf\.html$/u);
+  assert.match(
+    resolveStaticPath("/docs/approvals/review.html"),
+    /\/docs\/approvals\/review\.html$/u,
+  );
+  assert.equal(resolveStaticPath("/../README.md"), null);
+  assert.equal(resolveStaticPath("/docs/approvals/%2e%2e/%2e%2e/README.md"), null);
+
+  const approval = readFileSync(
+    "docs/approvals/2026-08-25-drag-order-and-smart-categories.html",
+    "utf8",
+  );
+  const reviewTabs = readFileSync("docs/approvals/review-tabs.js", "utf8");
+  assert.match(approval, /<script src="review-tabs\.js"><\/script>/u);
+  assert.doesNotMatch(approval, /<script>/u);
+  assert.match(reviewTabs, /ArrowLeft/u);
+  assert.match(reviewTabs, /ArrowRight/u);
 
   assert.equal(
     injectPreviewBootstrap(html, new URL("http://127.0.0.1:4173/shelf.html")),

@@ -256,8 +256,8 @@ func renderApproval(viewport: ApprovalViewport) throws {
       horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
     })
     """
-    guard let mindMapJSON = try evaluateApproval(mindMapChecks, in: webView) as? String,
-          mindMapJSON.contains("Drag ordering & smart categories"),
+    let mindMapJSON = (try evaluateApproval(mindMapChecks, in: webView) as? String) ?? "unavailable"
+    guard mindMapJSON.contains("Drag ordering & smart categories"),
           mindMapJSON.contains("\"tabs\":2"),
           mindMapJSON.contains("\"branches\":6"),
           mindMapJSON.contains("\"mindMapVisible\":true"),
@@ -265,7 +265,9 @@ func renderApproval(viewport: ApprovalViewport) throws {
           mindMapJSON.contains("\"animationsSettled\":true"),
           mindMapJSON.contains("\"contentFits\":true"),
           mindMapJSON.contains("\"horizontalOverflow\":false") else {
-        throw ApprovalPreviewFailure(message: "Mind Map contract failed for \(viewport.name)")
+        throw ApprovalPreviewFailure(
+            message: "Mind Map contract failed for \(viewport.name): \(mindMapJSON)"
+        )
     }
     let mindMapGeometry = (try? evaluateApproval(
         "JSON.stringify({ scrollHeight: document.documentElement.scrollHeight, innerHeight: innerHeight, scrollX: scrollX, title: (() => { const rect = document.querySelector('h1').getBoundingClientRect(); return { left: rect.left, right: rect.right, width: rect.width }; })() })",
@@ -308,15 +310,17 @@ func renderApproval(viewport: ApprovalViewport) throws {
       horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
     })
     """
-    guard let oneSlideJSON = try evaluateApproval(oneSlideChecks, in: webView) as? String,
-          oneSlideJSON.contains("\"mindMapHidden\":true"),
+    let oneSlideJSON = (try evaluateApproval(oneSlideChecks, in: webView) as? String) ?? "unavailable"
+    guard oneSlideJSON.contains("\"mindMapHidden\":true"),
           oneSlideJSON.contains("\"oneSlideVisible\":true"),
           oneSlideJSON.contains("\"selected\":\"true\""),
           oneSlideJSON.contains("Decision requested"),
           oneSlideJSON.contains("\"animationsSettled\":true"),
           oneSlideJSON.contains("\"contentFits\":true"),
           oneSlideJSON.contains("\"horizontalOverflow\":false") else {
-        throw ApprovalPreviewFailure(message: "One Slide contract failed for \(viewport.name)")
+        throw ApprovalPreviewFailure(
+            message: "One Slide contract failed for \(viewport.name): \(oneSlideJSON)"
+        )
     }
     let oneSlideGeometry = (try? evaluateApproval(
         "JSON.stringify({ scrollHeight: document.documentElement.scrollHeight, innerHeight: innerHeight, scrollX: scrollX, title: (() => { const rect = document.querySelector('h1').getBoundingClientRect(); return { left: rect.left, right: rect.right, width: rect.width }; })() })",

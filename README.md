@@ -4,15 +4,15 @@
 
 ## Why Tab Shelf
 
-Tab Shelf is a Safari-only personal utility that turns the tabs open on the current Mac into a focused visual workspace. It groups ordinary web tabs by domain, makes duplicates easy to spot, and keeps cleanup and appearance controls close at hand.
+Tab Shelf is a Safari-only personal utility that turns the tabs open on the current Mac into a focused visual workspace. It groups ordinary web tabs into automatic local categories, keeps one card per domain, makes duplicates easy to spot, and keeps cleanup and appearance controls close at hand.
 
 It is designed for people who want a quieter way to review many Safari tabs without creating an account or sending browsing data to a service.
 
 ## See it in action
 
-Open a new Safari tab to see one consistent card per domain. Each card shows its open pages, a locally derived accent, and direct controls to activate or close tabs. The toolbar popover provides the current web-tab count and a quick route to the shelf and Theme Studio.
+Open a new Safari tab to see useful local categories with one consistent card per domain. Each card shows its open pages, a locally derived accent, and direct controls to activate or close tabs. Dedicated drag handles and equivalent keyboard move menus let you arrange the workspace without changing Safari's native tab order. The toolbar popover provides the current web-tab count and a quick route to the shelf and Theme Studio.
 
-![Tab Shelf domain cards with varied local accents](docs/assets/tab-shelf-hero.png)
+![Tab Shelf category workspace with varied local card accents](docs/assets/tab-shelf-hero.png)
 
 Theme Studio exposes five authored starting points and local appearance controls. The native macOS host explains whether Safari has enabled the extension without sending account or browsing data anywhere.
 
@@ -40,7 +40,11 @@ No ads, subscriptions, accounts, analytics, or telemetry are included in either 
 
 ## Features
 
-- One consistent card per domain in a responsive grid.
+- Automatic local categories with one consistent card per domain in responsive category lanes.
+- Dedicated drag handles for reordering categories, reordering cards, and moving a domain into another category.
+- Keyboard move menus that provide the same organization controls without dragging.
+- Up to 24 custom categories, with names from 1 to 40 characters, plus rename, collapse, and safe delete controls.
+- Persistent manual assignments and ordering stored only on the current Mac.
 - A distinct card accent per domain, derived locally from an available favicon with a stable privacy-safe fallback.
 - Full tab titles with safe two-line truncation and tooltips.
 - Activate a tab, close one tab, close a domain, or close extra shelf pages.
@@ -52,11 +56,19 @@ No ads, subscriptions, accounts, analytics, or telemetry are included in either 
 - An editorial system-font pairing with readable multilingual tab titles.
 - Keyboard focus, reduced-motion support, semantic HTML, and responsive layouts.
 
+## Organize your workspace
+
+Tab Shelf starts with deterministic categories such as Work & Career, AI & Research, Communication, Shopping, and Other. Classification is local and repeatable. A manual move becomes a permanent assignment and takes priority over the automatic rule for that domain.
+
+Use the grip on a category or card to drag it into place. The adjacent move menu exposes the same actions for keyboard and assistive-technology users. Custom categories can be created from the shelf, renamed, collapsed, reordered, or deleted; deleting one returns its domains to automatic classification.
+
+Choose **Reset tab layout** in Theme Studio to remove manual assignments, custom categories, saved ordering, and collapsed state. This does not reset Theme Studio or close tabs. Workspace organization affects only the Tab Shelf view: it does not reorder Safari's native tabs, windows, or Tab Groups.
+
 ## Privacy by design
 
-Tab Shelf processes open-tab titles, URLs, favicons, preferences, and optional user-selected backgrounds locally on the current Mac. It does not collect, transmit, sell, or share this data, and it makes no first-party network requests. No telemetry is included.
+Tab Shelf processes open-tab titles, URLs, favicons, appearance preferences, workspace organization, and optional user-selected backgrounds locally on the current Mac. It does not collect, transmit, sell, or share this data, and it makes no first-party network requests. No telemetry is included.
 
-Safari may describe the extension's access as browsing-history access. Tab Shelf uses the `tabs` permission to display and manage tabs that are currently open; it does not build or transmit a browsing-history database. Preferences and an optional background image remain in Safari's local extension storage.
+Safari may describe the extension's access as browsing-history access. Tab Shelf uses the `tabs` permission to display and manage tabs that are currently open; it does not build or transmit a browsing-history database. Appearance preferences, workspace organization, and an optional background image remain in Safari's local extension storage.
 
 Card accents sample only favicon pixels already available to Safari. If an image cannot be read, Tab Shelf uses a deterministic color derived from the domain name; it does not fetch another image or send the domain to a service.
 

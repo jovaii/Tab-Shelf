@@ -4,15 +4,15 @@
 
 `QA-IN-PROGRESS`
 
-Tasks 1–7 of the approved App Store and GitHub release plan are implemented and independently reviewed. Task 8 has completed the automated baseline, generated-project validation, local macOS build, recoverable installation, signature checks, single-extension registration check, and visual QA. Real Safari profile journeys remain open before this state can become `VERIFIED-LOCAL`.
+The approved independent product and smart-category workspace are implemented. Task 9 has completed the automated baseline, approval Web views, generated-project validation, local macOS rebuild, recoverable installation, signature checks, single-extension registration check, and updated privacy-safe visuals. Real Safari profile journeys remain open before this state can become `VERIFIED-LOCAL`.
 
 ## Execution Ledger
 
 | Phase | Status | Current evidence | Stop signal |
 | --- | --- | --- | --- |
 | Specification | Complete | Approved design `1c06e1d` and plan `0e32e1d` | Commercial or privacy direction changes |
-| Implementation | Complete through Task 7 | Release configuration, host, deterministic project preparation, readiness, archive path, public docs, and App Store material | Work expands beyond the approved product |
-| Focused verification | Complete | 275/275 tests, audit, source/generated readiness, signatures, and four approved visuals | P0/P1, repeated unexplained failure, or missing core-loop evidence |
+| Implementation | Complete through Task 9 source/build | Smart categories, pointer and keyboard ordering, custom groups, separate workspace persistence/reset, release configuration, host, public docs, and App Store material | Work expands beyond the approved product |
+| Focused verification | Complete | 312/312 tests, audit, source/generated readiness, signatures, WebKit approval views, and updated synthetic visuals | P0/P1, repeated unexplained failure, or missing core-loop evidence |
 | Local Safari acceptance | Pending owner confirmation | Installed 1.0.0 build 1 and exactly one registered extension | Any real-tab action is not safely limited to disposable tabs |
 | GitHub and Apple delivery | Not started | Exact external gates preserved below | Owner/account/remote state cannot be verified |
 
@@ -20,9 +20,9 @@ Tasks 1–7 of the approved App Store and GitHub release plan are implemented an
 
 ### Repository and automated candidate
 
-FACT: The release branch is `feature/independent-v1`; the implementation head before Task 8 assets and records is `86f3bfdb6aa92fa9b739c2a8eb15a5b5c0f3f6d3`.
+FACT: The release branch is `feature/independent-v1`; the final candidate commit is recorded after the documentation and installed-source alignment checks complete.
 
-FACT: `npm run check` passed 275/275 tests. Repository audit reported zero runtime dependencies and zero prohibited or whole-file matches. Source readiness reported Tab Shelf 1.0.0 build 1 with outgoing network entitlement off and zero detected secrets.
+FACT: `npm run check` passed 312/312 tests. Repository audit reported zero runtime dependencies and zero prohibited or whole-file matches. Source readiness reported Tab Shelf 1.0.0 build 1 with outgoing network entitlement off and zero detected secrets.
 
 SOURCE: Commands executed on 25 August 2026 and local QA run `artifacts/qa/qa-2026-08-25-001/`.
 
@@ -38,9 +38,9 @@ SOURCE: Local package, readiness, install, codesign, plist, process, and plugink
 
 ### Product visuals
 
-FACT: Four original synthetic-data visuals exist under `docs/assets/`: shelf hero, Theme Studio, native host states, and an exact 1280 × 640 social preview. Independent review approved all four after two bounded P2 crop/composition fixes passed retest; no P0/P1/P2/P3 remains.
+FACT: Four original synthetic-data visuals exist under `docs/assets/`: the updated category-workspace hero, Theme Studio, native host states, and an exact 1280 × 640 category-workspace social preview. The updated hero and social preview passed final visual inspection without private browsing data.
 
-SOURCE: `.superpowers/sdd/task-8-assets-report.md` and the independent Task 8A review.
+SOURCE: Deterministic WebKit output and final visual inspection on 25 August 2026.
 
 ### Open local evidence
 

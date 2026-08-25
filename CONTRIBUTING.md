@@ -30,6 +30,8 @@ Tab Shelf uses no account, analytics, telemetry, advertising, remote runtime ass
 
 Safari tab and storage permissions must remain narrowly justified by user-visible behavior. Tests and previews must use synthetic or disposable tab data.
 
+Workspace changes must preserve the separate validated `tabShelf.workspace.v1` boundary, deterministic automatic classification, bounded custom-category data, keyboard parity for every drag operation, and the rule that Tab Shelf never reorders Safari's native tabs, windows, or Tab Groups.
+
 ## Documentation and interface changes
 
 Keep public documentation in English and base claims on behavior verified in the repository. Do not invent release links, store availability, signing status, or screenshots. Interface changes should preserve keyboard access, reduced-motion behavior, readable contrast, and responsive layouts.

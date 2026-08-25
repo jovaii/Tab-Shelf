@@ -51,6 +51,14 @@ Open Tab Shelf, select the round settings control or toolbar popover, and open *
 
 Before importing a theme, confirm that the file is a Tab Shelf export named `tab-shelf-preferences-v1.json`. Imports that do not match the current validated schema are rejected.
 
+## Restore automatic categories and ordering
+
+Tab Shelf automatically places each domain into a local category. A manual move remains assigned to the chosen category, and card and category order persist after reopening the shelf.
+
+If the organization no longer suits you, open Theme Studio, select the **Reset** section, and choose **Reset tab layout**. This removes custom categories, manual assignments, saved ordering, and collapsed state. It does not reset Theme Studio, close Safari tabs, or change Safari's native tab order, windows, or Tab Groups.
+
+If one domain appears in an unexpected category after a manual move, use its move menu to select another category or use **Reset tab layout** to return all domains to automatic classification.
+
 ## Uninstall
 
 For a temporary source installation, disable Tab Shelf in Safari → Settings → Extensions or fully quit Safari.

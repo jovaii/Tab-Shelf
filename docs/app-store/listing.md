@@ -18,8 +18,10 @@ Product/source URL: https://github.com/jovaii/Tab-Shelf
 
 ## Description
 
-Turn the tabs open in Safari into a calm visual shelf. Tab Shelf groups pages into clear domain cards, highlights repeated pages for duplicate cleanup, and keeps direct tab actions close at hand.
+Turn the tabs open in Safari into a calm visual shelf. Tab Shelf places domain cards into useful automatic local categories, highlights repeated pages for duplicate cleanup, and keeps direct tab actions close at hand.
 
-Choose from five themes or create custom backgrounds with solid colors, gradients, or a local image. Appearance preferences stay local on the current Mac.
+Arrange the workspace with dedicated drag handles or equivalent keyboard move menus. Reorder cards and categories, move a domain into another category, or create, rename, collapse, reorder, and safely delete custom categories. Your choices persist locally and never reorder Safari's native tabs, windows, or Tab Groups.
+
+Choose from five themes or create custom backgrounds with solid colors, gradients, or a local image. Appearance preferences and workspace organization stay local on the current Mac. Reset the tab layout independently without changing the selected appearance or closing tabs.
 
 Tab Shelf collects nothing, and no account is needed.

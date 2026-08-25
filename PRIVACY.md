@@ -6,7 +6,7 @@ Tab Shelf is a local Safari utility for organizing the tabs open on the current 
 
 ## Data processed locally
 
-Tab Shelf handles open-tab titles, URLs, favicons, preferences, and optional user-selected backgrounds. These items are processed locally on the current Mac so the shelf can group tabs, identify duplicates, display page information, apply themes, and carry out tab actions chosen by the user.
+Tab Shelf handles open-tab titles, URLs, favicons, appearance preferences, workspace organization, and optional user-selected backgrounds. Workspace organization includes custom category names, domain assignments, card and category order, and collapsed state. These items are processed locally on the current Mac so the shelf can organize tabs, identify duplicates, display page information, apply themes, and carry out tab actions chosen by the user.
 
 Tab Shelf does not collect, transmit, sell, or share this data. It makes no first-party network requests and includes no advertising, analytics, telemetry, account system, or remote data service.
 
@@ -18,9 +18,9 @@ Safari may warn that Tab Shelf can see browsing history on websites you visit. T
 
 ## Local storage
 
-Theme preferences and an optional user-selected background are stored in Safari's local extension storage. A selected image is resized and compressed locally before storage. Theme export creates a local `tab-shelf-preferences-v1.json` file only when the user chooses **Export theme**.
+Theme preferences and an optional user-selected background are stored in Safari's local extension storage under the validated appearance schema. Workspace organization is stored separately under `tabShelf.workspace.v1`. A selected image is resized and compressed locally before storage. Theme export creates a local `tab-shelf-preferences-v1.json` file only when the user chooses **Export theme**; workspace organization is not included in that export.
 
-Resetting the appearance removes the active customization from Tab Shelf's local preferences. Disabling or uninstalling the extension prevents further access; Safari controls deletion of its extension storage.
+**Reset appearance** removes the active theme customization without changing workspace organization. **Reset tab layout** removes manual assignments, custom categories, saved ordering, and collapsed state without changing appearance or closing tabs. Disabling or uninstalling the extension prevents further access; Safari controls deletion of its extension storage.
 
 ## Third parties
 
