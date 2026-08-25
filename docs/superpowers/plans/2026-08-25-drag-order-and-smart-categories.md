@@ -743,16 +743,19 @@ git commit -m "feat: coordinate persistent workspace changes"
 
 **Files:**
 - Modify: `extension/shelf.css`
+- Modify: `extension/ui/sortable-controller.mjs`
 - Modify: `scripts/render-preview.swift`
 - Modify: `tests/preview-contract.test.mjs`
 - Modify: `tests/shelf-contract.test.mjs`
+- Modify: `scripts/app-store-release-profile.mjs`
+- Modify: `scripts/check-app-store-readiness.mjs`
 - Modify: `tests/fixtures/tabs.json` only if synthetic titles need broader category coverage.
 
 **Interfaces:**
 - Consumes: semantic category/drag class names and the preview Safari API.
 - Produces: stable category lanes, equal card grids, drag placeholder/drop states, compact layout, reduced motion, and deterministic desktop/compact WebKit evidence.
 
-- [ ] **Step 1: Write failing CSS and renderer contracts**
+- [x] **Step 1: Write failing CSS and renderer contracts**
 
 ```js
 test("category and drag styles preserve equal grids and accessible state", () => {
@@ -769,19 +772,19 @@ test("category and drag styles preserve equal grids and accessible state", () =>
 
 Update renderer contracts to require `.category-section`, card/category handles, same-category move, cross-category move, saved workspace after reload, settings reset, six-card total, eight-tab total, zero horizontal overflow, and both existing viewports.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 Run: `node --test tests/shelf-contract.test.mjs tests/preview-contract.test.mjs`
 
 Expected: FAIL because category/drag styles and renderer assertions are absent.
 
-- [ ] **Step 3: Implement style states and update WebKit flow**
+- [x] **Step 3: Implement style states and update WebKit flow**
 
 The category list is a vertical grid. Each section header uses one compact row; its child card grid reuses the existing `repeat(auto-fit, minmax(min(100%, 19rem), 1fr))`. The placeholder preserves exact card dimensions. Active drop targets combine border/surface/label changes. At narrow widths, controls wrap without horizontal overflow. Drag transitions and auto-scroll are removed under reduced motion.
 
 In `render-preview.swift`, query category and handle counts, invoke the same typed keyboard menu actions where pointer synthesis is unreliable, verify localStorage-backed workspace after reload, reset in Theme Studio, and confirm the theme remains Storm Horizon after workspace reset.
 
-- [ ] **Step 4: Run WebKit and inspect four source screenshots**
+- [x] **Step 4: Run WebKit and inspect four source screenshots**
 
 Run:
 

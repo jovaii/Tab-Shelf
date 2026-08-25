@@ -115,3 +115,19 @@ test("shelf owns one bounded category editor without inline handlers", () => {
   assert.match(javascript, /rename-category/u);
   assert.doesNotMatch(html, /on(?:click|load|error)=/iu);
 });
+
+test("category and drag styles preserve equal grids and accessible state", () => {
+  const css = source("extension/shelf.css");
+
+  assert.match(css, /\.workspace-root\s*\{[^}]*display:\s*grid/isu);
+  assert.match(css, /\.category-section\s*\{[^}]*display:\s*grid/isu);
+  assert.match(css, /\.card-grid\.category-card-grid\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fill,/isu);
+  assert.match(css, /\.site-card__header\s*\{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) auto auto/isu);
+  assert.match(css, /\.sort-handle\s*\{[^}]*touch-action:\s*none/isu);
+  assert.match(css, /\.site-card\[data-dragging="true"\]/u);
+  assert.match(css, /\.sort-placeholder/u);
+  assert.match(css, /\.category-section\[data-drop-target="true"\]/u);
+  assert.match(css, /\.category-dialog::backdrop/u);
+  assert.match(css, /prefers-reduced-motion/u);
+  assert.doesNotMatch(css, /masonry|column-count/iu);
+});

@@ -158,6 +158,15 @@ test("WebKit renderer is local-only and captures the two acceptance viewports", 
   assert.match(source, /data-render-ready/u);
   assert.match(source, /scrollWidth/u);
   assert.match(source, /querySelectorAll\('\.site-card'\)/u);
+  assert.match(source, /querySelectorAll\('\.category-section'\)/u);
+  assert.match(source, /data-sort-kind=card/u);
+  assert.match(source, /data-sort-kind=category/u);
+  assert.match(source, /move-card-earlier/u);
+  assert.match(source, /move-card-to-category/u);
+  assert.match(source, /Preview Focus/u);
+  assert.match(source, /stage=workspace-persistence/u);
+  assert.match(source, /reset-workspace/u);
+  assert.match(source, /stage=workspace-reset/u);
   assert.match(source, /close-tab/u);
   assert.match(source, /settings\.html/u);
   assert.match(source, /preset-button/u);

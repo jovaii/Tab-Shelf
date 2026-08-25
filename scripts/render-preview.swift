@@ -12,6 +12,9 @@ struct Viewport {
 
 struct ShelfMetrics: Decodable {
     let cardCount: Int
+    let categoryCount: Int
+    let cardHandleCount: Int
+    let categoryHandleCount: Int
     let openCount: Int
     let horizontalOverflow: Bool
     let credit: String
@@ -182,6 +185,9 @@ func render(viewport: Viewport) throws {
     let metricsScript = """
     JSON.stringify({
       cardCount: document.querySelectorAll('.site-card').length,
+      categoryCount: document.querySelectorAll('.category-section').length,
+      cardHandleCount: document.querySelectorAll('[data-sort-kind=card]').length,
+      categoryHandleCount: document.querySelectorAll('[data-sort-kind=category]').length,
       openCount: Number(document.querySelector('#open-count')?.textContent ?? '-1'),
       horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       credit: document.querySelector('.product-credit')?.textContent ?? ''
@@ -191,6 +197,9 @@ func render(viewport: Viewport) throws {
           let metricsData = metricsJSON.data(using: .utf8),
           let metrics = try? JSONDecoder().decode(ShelfMetrics.self, from: metricsData),
           metrics.cardCount == 6,
+          metrics.categoryCount == 4,
+          metrics.cardHandleCount == metrics.cardCount,
+          metrics.categoryHandleCount == metrics.categoryCount,
           metrics.openCount == 8,
           metrics.horizontalOverflow == false,
           metrics.credit == "Tab Shelf by James Li" else {
@@ -199,17 +208,88 @@ func render(viewport: Viewport) throws {
     print("PASS viewport=\(viewport.name) stage=shelf-metrics")
 
     _ = try evaluate(
-        "document.querySelector('[data-action=close-tab]').click(); 'clicked'",
+        """
+        (() => {
+          const category = document.querySelector('.category-section');
+          category.querySelector('[data-sort-kind=category]').click();
+          category.querySelector('[data-action=move-category-later]').click();
+          return 'clicked';
+        })()
+        """,
         in: webView
     )
     guard waitForValue(
-        "7",
-        script: "document.querySelector('#open-count')?.textContent",
+        "Category order saved",
+        script: "document.querySelector('#status')?.textContent",
         in: webView
     ) else {
-        throw PreviewFailure(message: "Closing one tab did not update the count for \(viewport.name)")
+        throw PreviewFailure(message: "Category ordering did not save for \(viewport.name)")
     }
-    print("PASS viewport=\(viewport.name) stage=close-tab")
+    print("PASS viewport=\(viewport.name) stage=category-order")
+
+    _ = try evaluate(
+        """
+        (() => {
+          const category = [...document.querySelectorAll('.category-section')]
+            .find((section) => section.querySelectorAll('.site-card').length >= 2);
+          const card = category.querySelectorAll('.site-card')[1];
+          card.querySelector('[data-sort-kind=card]').click();
+          card.querySelector('[data-action=move-card-earlier]').click();
+          return 'clicked';
+        })()
+        """,
+        in: webView
+    )
+    guard waitForValue(
+        "Domain position saved",
+        script: "document.querySelector('#status')?.textContent",
+        in: webView
+    ) else {
+        throw PreviewFailure(message: "Same-category ordering did not save for \(viewport.name)")
+    }
+    print("PASS viewport=\(viewport.name) stage=card-order")
+
+    _ = try evaluate(
+        """
+        document.querySelector('#new-category').click();
+        document.querySelector('#category-name').value = 'Preview Focus';
+        document.querySelector('#category-form').requestSubmit();
+        'submitted'
+        """,
+        in: webView
+    )
+    let customCategoryScript = "String(Boolean(document.querySelector('.category-section[data-group-id=\\\"custom:preview-focus\\\"]')))"
+    guard waitForValue("true", script: customCategoryScript, in: webView) else {
+        throw PreviewFailure(message: "Custom category creation did not save for \(viewport.name)")
+    }
+
+    _ = try evaluate(
+        """
+        (() => {
+          const custom = document.querySelector('.category-section[data-group-id="custom:preview-focus"]');
+          const card = [...document.querySelectorAll('.site-card')]
+            .find((candidate) => !custom.contains(candidate));
+          card.querySelector('[data-sort-kind=card]').click();
+          card.querySelector('[data-action=move-card-to-category][data-group-id="custom:preview-focus"]').click();
+          return 'clicked';
+        })()
+        """,
+        in: webView
+    )
+    let customCardScript = "String(document.querySelector('.category-section[data-group-id=\\\"custom:preview-focus\\\"]')?.querySelectorAll('.site-card').length === 1)"
+    guard waitForValue("true", script: customCardScript, in: webView) else {
+        throw PreviewFailure(message: "Cross-category move did not save for \(viewport.name)")
+    }
+    print("PASS viewport=\(viewport.name) stage=cross-category")
+
+    observer.finished = false
+    webView.reload()
+    guard waitUntil(timeout: 15, condition: { observer.finished }),
+          waitForValue("true", script: renderReadyScript, in: webView),
+          waitForValue("true", script: customCardScript, in: webView) else {
+        throw PreviewFailure(message: "Workspace did not survive reload for \(viewport.name)")
+    }
+    print("PASS viewport=\(viewport.name) stage=workspace-persistence")
 
     _ = try evaluate("document.querySelector('#settings-button').click(); 'clicked'", in: webView)
     guard waitForValue("/settings.html", script: "location.pathname", in: webView) else {
@@ -244,6 +324,23 @@ func render(viewport: Viewport) throws {
     }
     print("PASS viewport=\(viewport.name) stage=theme-switch")
 
+    _ = try evaluate(
+        "window.confirm = () => true; document.querySelector('#reset-workspace').click(); 'clicked'",
+        in: webView
+    )
+    guard waitForValue(
+        "Workspace layout reset",
+        script: "document.querySelector('#settings-status')?.textContent",
+        in: webView
+    ), waitForValue(
+        "light",
+        script: "document.documentElement.getAttribute('data-text-mode')",
+        in: webView
+    ) else {
+        throw PreviewFailure(message: "Workspace reset changed the theme for \(viewport.name)")
+    }
+    print("PASS viewport=\(viewport.name) stage=workspace-reset")
+
     _ = try evaluate("document.querySelector('#open-shelf').click(); 'clicked'", in: webView)
     guard waitForValue("/shelf.html", script: "location.pathname", in: webView),
           waitForValue("true", script: renderReadyScript, in: webView),
@@ -251,8 +348,13 @@ func render(viewport: Viewport) throws {
               "light",
               script: "document.documentElement.getAttribute('data-text-mode')",
               in: webView
+          ),
+          waitForValue(
+              "false",
+              script: customCategoryScript,
+              in: webView
           ) else {
-        throw PreviewFailure(message: "Storm Horizon shelf did not render for \(viewport.name)")
+        throw PreviewFailure(message: "Reset Storm Horizon shelf did not render for \(viewport.name)")
     }
 
     let snapshotConfiguration = WKSnapshotConfiguration()
@@ -272,6 +374,19 @@ func render(viewport: Viewport) throws {
     let destination = outputDirectory.appendingPathComponent("\(viewport.name).png")
     try pngData(from: snapshot, width: viewport.width, height: viewport.height)
         .write(to: destination, options: .atomic)
+
+    _ = try evaluate(
+        "document.querySelector('[data-action=close-tab]').click(); 'clicked'",
+        in: webView
+    )
+    guard waitForValue(
+        "7",
+        script: "document.querySelector('#open-count')?.textContent",
+        in: webView
+    ) else {
+        throw PreviewFailure(message: "Closing one tab did not update the count for \(viewport.name)")
+    }
+    print("PASS viewport=\(viewport.name) stage=close-tab")
 }
 
 try MainActor.assumeIsolated {

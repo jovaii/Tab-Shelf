@@ -174,6 +174,14 @@ export function createSortableController({ root, window, onAction, onDragStateCh
   let frame = null;
   let suppressClick = false;
   let destroyed = false;
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+
+  function setDropTarget(session, node = null) {
+    if (session.dropTarget === node) return;
+    if (session.dropTarget) delete session.dropTarget.dataset.dropTarget;
+    session.dropTarget = node;
+    if (node) node.dataset.dropTarget = "true";
+  }
 
   function releaseCapture(session) {
     try {
@@ -197,8 +205,10 @@ export function createSortableController({ root, window, onAction, onDragStateCh
       action = session.action;
     }
     if (session.started) {
+      setDropTarget(session);
       session.placeholder?.remove();
       session.source.classList.remove("is-dragging");
+      delete session.source.dataset.dragging;
       session.handle.setAttribute?.("aria-grabbed", "false");
       restoreStyle(session.source, session.previousStyle);
       suppressClick = true;
@@ -218,6 +228,7 @@ export function createSortableController({ root, window, onAction, onDragStateCh
     session.placeholder = placeholder;
     session.previousStyle = captureStyle(session.source);
     session.source.classList.add("is-dragging");
+    session.source.dataset.dragging = "true";
     session.handle.setAttribute?.("aria-grabbed", "true");
     session.started = true;
     dragging = session;
@@ -233,12 +244,14 @@ export function createSortableController({ root, window, onAction, onDragStateCh
       { x: session.point.x, y: session.point.y },
     );
     if (!target) {
+      setDropTarget(session);
       session.validTarget = false;
       session.action = null;
       return;
     }
     const grid = cardGrid(root, target.groupId);
     if (!grid) {
+      setDropTarget(session);
       session.validTarget = false;
       session.action = null;
       return;
@@ -247,6 +260,7 @@ export function createSortableController({ root, window, onAction, onDragStateCh
       ? cardNode(grid, target.beforeDomain, session.source)
       : null;
     grid.insertBefore(session.placeholder, before);
+    setDropTarget(session, grid.closest?.(".category-section") ?? grid);
     session.validTarget = true;
     session.action = {
       type: "move-card",
@@ -263,6 +277,7 @@ export function createSortableController({ root, window, onAction, onDragStateCh
       y: session.point.y,
     });
     if (!target) {
+      setDropTarget(session);
       session.validTarget = false;
       session.action = null;
       return;
@@ -274,6 +289,10 @@ export function createSortableController({ root, window, onAction, onDragStateCh
         )
       : null;
     root.insertBefore(session.placeholder, before);
+    const sections = nodeArray(root, ".category-section").filter(
+      (section) => section !== session.source,
+    );
+    setDropTarget(session, before ?? sections.at(-1) ?? null);
     session.validTarget = true;
     session.action = {
       type: "move-category",
@@ -293,9 +312,11 @@ export function createSortableController({ root, window, onAction, onDragStateCh
     if (session.kind === "card") positionCard(session);
     else positionCategory(session);
 
-    if (session.point.y < EDGE_SCROLL_PX) window.scrollBy?.(0, -EDGE_SCROLL_STEP_PX);
-    else if (session.point.y > window.innerHeight - EDGE_SCROLL_PX) {
-      window.scrollBy?.(0, EDGE_SCROLL_STEP_PX);
+    if (!reducedMotion) {
+      if (session.point.y < EDGE_SCROLL_PX) window.scrollBy?.(0, -EDGE_SCROLL_STEP_PX);
+      else if (session.point.y > window.innerHeight - EDGE_SCROLL_PX) {
+        window.scrollBy?.(0, EDGE_SCROLL_STEP_PX);
+      }
     }
   }
 
