@@ -211,7 +211,7 @@ test("records the 1.0.0 release and current acceptance boundary", () => {
   assert.match(acceptance, /Temporary Safari profile acceptance remains manual/);
   assert.match(acceptance, /exactly one registered Tab Shelf extension/u);
   assert.match(progress, /`QA-IN-PROGRESS`/u);
-  assert.match(progress, /GitHub remote mutation is deferred/u);
+  assert.match(progress, /GitHub source and metadata synchronization is complete/u);
   assert.match(progress, /Apple Distribution archive/u);
 });
 

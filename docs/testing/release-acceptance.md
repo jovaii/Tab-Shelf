@@ -41,7 +41,7 @@ Temporary Safari profile acceptance remains manual. It includes enabling the ext
 - No open P0 or P1 software issue is known from completed layers.
 - Local App use: no build, installation, signature, or registration blocker.
 - Safari profile enablement and real-tab actions remain manual.
-- GitHub synchronization follows only after the final verified commit. Apple Distribution archive/upload remains behind account-owned prerequisites and explicit submission approval.
+- GitHub source and metadata synchronization is complete; no binary consumer release was created. Apple Distribution archive/upload remains behind account-owned prerequisites and explicit submission approval.
 
 ## Evidence
 

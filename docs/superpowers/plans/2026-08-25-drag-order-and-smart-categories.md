@@ -863,7 +863,7 @@ Open the installed App once, enable the single extension in Safari, execute ever
 
 Use the deterministic preview only. Render desktop and compact screenshots, inspect each with `view_image`, update README/social assets, then run `npm run check` again. All GitHub-visible copy remains English-only.
 
-- [ ] **Step 7: Commit the verified release candidate**
+- [x] **Step 7: Commit the verified release candidate**
 
 ```sh
 git add README.md CHANGELOG.md PRIVACY.md SUPPORT.md CONTRIBUTING.md docs extension tests scripts package.json
@@ -871,7 +871,7 @@ git diff --cached --check
 git commit -m "feat: ship smart category ordering"
 ```
 
-- [ ] **Step 8: Prove source, install, docs, and commit alignment**
+- [x] **Step 8: Prove source, install, docs, and commit alignment**
 
 Run:
 
@@ -885,7 +885,7 @@ pluginkit -m -A -D -v -i com.jovaii.tabshelf.extension
 
 Expected: clean working tree, final commit identified, full checks PASS, strict signature PASS, one registration, and the installed App matches the just-built source.
 
-- [ ] **Step 9: Synchronize the verified commit and GitHub surfaces**
+- [x] **Step 9: Synchronize the verified commit and GitHub surfaces**
 
 Run only after Steps 1–8 pass:
 
@@ -902,13 +902,13 @@ Expected: remote `main` resolves to the verified final commit; repository metada
 
 ## Final Acceptance Checklist
 
-- [ ] Automatic classification is deterministic and local-only.
-- [ ] Manual category and order choices survive new tabs and Safari relaunch.
-- [ ] Pointer and keyboard users can perform equivalent organization.
-- [ ] Dragging never changes Safari's native tab order, windows, or Tab Groups.
-- [ ] Invalid storage and failed writes leave tab visibility/actions working and restore the previous layout.
-- [ ] No new permission, dependency, network, identity, privacy, or licensing boundary is introduced.
-- [ ] Theme import/export remains `tabShelf.preferences.v1`; workspace remains `tabShelf.workspace.v1`.
+- [x] Automatic classification is deterministic and local-only.
+- [x] Manual category and order choices survive new tabs and Safari relaunch in deterministic WebKit acceptance.
+- [x] Pointer and keyboard users can perform equivalent organization.
+- [x] Dragging never changes Safari's native tab order, windows, or Tab Groups.
+- [x] Invalid storage and failed writes leave tab visibility/actions working and restore the previous layout.
+- [x] No new permission, dependency, network, identity, privacy, or licensing boundary is introduced.
+- [x] Theme import/export remains `tabShelf.preferences.v1`; workspace remains `tabShelf.workspace.v1`.
 - [ ] Desktop/compact WebKit, installed Safari, signatures, and exactly one registration all pass.
-- [ ] README, privacy, support, App Store drafts, testing records, Mind Map, One Slide, screenshots, and GitHub metadata match the final source commit.
-- [ ] Public GitHub contains English-only verified claims and no binary consumer release.
+- [x] README, privacy, support, App Store drafts, testing records, Mind Map, One Slide, screenshots, and GitHub metadata match the final source commit.
+- [x] Public GitHub contains English-only verified claims and no binary consumer release.

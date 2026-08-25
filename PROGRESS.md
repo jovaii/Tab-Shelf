@@ -14,7 +14,7 @@ The approved independent product and smart-category workspace are implemented. T
 | Implementation | Complete through Task 9 source/build | Smart categories, pointer and keyboard ordering, custom groups, separate workspace persistence/reset, release configuration, host, public docs, and App Store material | Work expands beyond the approved product |
 | Focused verification | Complete | 312/312 tests, audit, source/generated readiness, signatures, WebKit approval views, and updated synthetic visuals | P0/P1, repeated unexplained failure, or missing core-loop evidence |
 | Local Safari acceptance | Pending owner confirmation | Installed 1.0.0 build 1 and exactly one registered extension | Any real-tab action is not safely limited to disposable tabs |
-| GitHub and Apple delivery | Not started | Exact external gates preserved below | Owner/account/remote state cannot be verified |
+| GitHub and Apple delivery | GitHub complete; Apple gated | Public source, English docs, description, and topics synchronized; no binary GitHub Release | Apple account or submission state cannot be verified |
 
 ## Evidence Ledger
 
@@ -50,7 +50,15 @@ NEXT: The owner completes the disposable-tab checklist in `docs/testing/local-sa
 
 SUCCESS: No open P0/P1, all core Safari journeys pass, no P1/P2 visual issue remains, and final signatures/readiness pass against the committed candidate.
 
+### GitHub synchronization
+
+FACT: Public `jovaii/Tab-Shelf` main contains the verified smart-category source, current English documentation, updated category-workspace visuals, and the non-destructive merge of the earlier public history.
+
+FACT: The public repository description and Safari, macOS, Safari Extension, tab-management, and privacy topics are current. No binary GitHub Release was created.
+
+SOURCE: Authenticated repository, commit, metadata, and remote-main queries on 25 August 2026.
+
 ## External Gates
 
-- GitHub remote mutation is deferred until local implementation and QA pass and the exact repository, branch, commit, commands, impact, rollback, and cost are presented for approval.
+- GitHub source and metadata synchronization is complete. Future remote changes remain limited to verified source commits and explicitly approved release actions.
 - Apple Distribution archive creation, validation/upload, USD 9.99 pricing activation, and App Review submission are deferred until the enrolled Apple team and App Store Connect state are verified and the exact external action is approved.
