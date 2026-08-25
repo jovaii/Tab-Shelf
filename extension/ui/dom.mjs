@@ -8,7 +8,16 @@ const OPTION_KEYS = new Set([
   "text",
   "type",
 ]);
-const EVENT_NAMES = new Set(["change", "click", "input", "keydown"]);
+const EVENT_NAMES = new Set([
+  "change",
+  "click",
+  "input",
+  "keydown",
+  "pointercancel",
+  "pointerdown",
+  "pointermove",
+  "pointerup",
+]);
 const TAG_NAME = /^[a-z][a-z0-9-]*$/u;
 
 function plainRecord(value, label) {

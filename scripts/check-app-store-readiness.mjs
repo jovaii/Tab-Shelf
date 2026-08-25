@@ -51,7 +51,7 @@ const APPROVED_XCODE_PROFILE = Object.freeze({
   lastSwiftUpdateCheck: "2660",
   lastUpgradeCheck: "2660",
 });
-const APPROVED_PROFILE_SEAL = "61185fa5c3fb600becfded108f25eab683c6e9471c02ed4933460ad29e1b7fc7";
+const APPROVED_PROFILE_SEAL = "aa445372a9b983c11d5b862f0845ba700b6c3a17257c94e2faa14b9c074d0120";
 const APPROVED_EXTENSION_PATHS = Object.freeze([
   "background.js", "core", "core/classifier.mjs", "core/preferences.mjs", "core/tab-model.mjs",
   "core/workspace-actions.mjs", "core/workspace.mjs", "icons",
@@ -60,7 +60,7 @@ const APPROVED_EXTENSION_PATHS = Object.freeze([
   "manifest.json", "platform", "platform/safari-gateway.mjs", "popup.css", "popup.html",
   "popup.mjs", "settings.css", "settings.html", "settings.mjs", "shared",
   "shared/tokens.css", "shelf.css", "shelf.html", "shelf.mjs", "ui", "ui/dom.mjs",
-  "ui/shelf-view.mjs", "ui/site-accent.mjs", "ui/theme-runtime.mjs",
+  "ui/shelf-view.mjs", "ui/site-accent.mjs", "ui/sortable-controller.mjs", "ui/theme-runtime.mjs",
 ]);
 const APPROVED_GENERATED_PATHS = Object.freeze([
   "Tab Shelf/Tab Shelf Extension/Info.plist",
@@ -95,7 +95,8 @@ const APPROVED_EXECUTABLE_PATHS = Object.freeze([
   "extension/platform/safari-gateway.mjs", "extension/popup.html", "extension/popup.mjs",
   "extension/settings.html", "extension/settings.mjs", "extension/shelf.html", "extension/shelf.mjs",
   "extension/ui/dom.mjs", "extension/ui/shelf-view.mjs", "extension/ui/site-accent.mjs",
-  "extension/ui/theme-runtime.mjs", "native/host/Base.lproj/Main.html", "native/host/Script.js",
+  "extension/ui/sortable-controller.mjs", "extension/ui/theme-runtime.mjs",
+  "native/host/Base.lproj/Main.html", "native/host/Script.js",
   "native/host/ViewController.swift",
   "native/release/xcode-26.6/Tab Shelf/Tab Shelf Extension/SafariWebExtensionHandler.swift",
   "native/release/xcode-26.6/Tab Shelf/Tab Shelf/AppDelegate.swift",

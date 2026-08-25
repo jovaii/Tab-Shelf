@@ -12,9 +12,10 @@ const executableSourceDigests = Object.freeze({
   "extension/settings.mjs": "1b5cebb616dde2fefded09f24708fd19f5b5eec172ab0e52ee7a9891f47e4f0b",
   "extension/shelf.html": "7fcfb9ac792586112fcafdb78ff9ea04f1d2f16774cf6746140fb040716a1955",
   "extension/shelf.mjs": "78630b998767937b038410a1b2241aeafe7261df64d211f1a0dbbcf02235df1a",
-  "extension/ui/dom.mjs": "2e8f134251ff526775a5bc4786340a6d48be1eddbb572da9a461de1a4b0527b4",
+  "extension/ui/dom.mjs": "4f1f6cb42a930252a30c2c895aa65d0b2d722b6667b551d6ea25312642ccbee3",
   "extension/ui/shelf-view.mjs": "4c31ac96396f9efc533ef1cfe3d88eddd72103ac757fa90d31a7409323072b2e",
   "extension/ui/site-accent.mjs": "360294a61e5b29f2829762528a189ba3d34b52860f861413456e85eb3a02caa5",
+  "extension/ui/sortable-controller.mjs": "ba93abe05c7bc535989b9fdc286643a44078fbb25aad56573e30f1e9c2c73bae",
   "extension/ui/theme-runtime.mjs": "32c9999d018426246f66e13c87e1aa552e360885f85075dbd1d009a09a91cc2e",
   "native/host/Script.js": "cc017148e703eee6200b7a08bf99ae62a46faddd50123a9d4771611740a913f7",
   "native/host/ViewController.swift": "e69f9f4bf396bcb1b4d7ebf645ae189b64a30048933a6abde7e21109f1e45304",
@@ -59,9 +60,10 @@ const extensionTree = Object.freeze({
   "shelf.html": extensionFile("7fcfb9ac792586112fcafdb78ff9ea04f1d2f16774cf6746140fb040716a1955"),
   "shelf.mjs": extensionFile("78630b998767937b038410a1b2241aeafe7261df64d211f1a0dbbcf02235df1a"),
   ui: Object.freeze({ type: "directory", modeClass: "directory" }),
-  "ui/dom.mjs": extensionFile("2e8f134251ff526775a5bc4786340a6d48be1eddbb572da9a461de1a4b0527b4"),
+  "ui/dom.mjs": extensionFile("4f1f6cb42a930252a30c2c895aa65d0b2d722b6667b551d6ea25312642ccbee3"),
   "ui/shelf-view.mjs": extensionFile("4c31ac96396f9efc533ef1cfe3d88eddd72103ac757fa90d31a7409323072b2e"),
   "ui/site-accent.mjs": extensionFile("360294a61e5b29f2829762528a189ba3d34b52860f861413456e85eb3a02caa5"),
+  "ui/sortable-controller.mjs": extensionFile("ba93abe05c7bc535989b9fdc286643a44078fbb25aad56573e30f1e9c2c73bae"),
   "ui/theme-runtime.mjs": extensionFile("32c9999d018426246f66e13c87e1aa552e360885f85075dbd1d009a09a91cc2e"),
 });
 

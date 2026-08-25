@@ -257,7 +257,7 @@ export function buildWorkspaceView(model, value) {
 }
 ```
 
-- [ ] **Step 4: Run focused and full tests**
+- [x] **Step 4: Run focused and full tests**
 
 Run: `node --test tests/classifier.test.mjs tests/workspace.test.mjs && npm test`
 
@@ -571,13 +571,15 @@ git commit -m "feat: render smart category sections"
 - Create: `extension/ui/sortable-controller.mjs`
 - Create: `tests/sortable-controller.test.mjs`
 - Modify: `extension/ui/dom.mjs`
-- Modify: `tests/shelf-view.test.mjs`
+- Modify: `scripts/app-store-release-profile.mjs`
+- Modify: `scripts/check-app-store-readiness.mjs`
+- Verify unchanged: `tests/shelf-view.test.mjs` (keyboard intents were completed in Task 5)
 
 **Interfaces:**
 - Consumes: a workspace root, typed handle datasets, live category/card rectangles, and `onAction(action)`.
 - Produces: `createSortableController({ root, window, onAction, onDragStateChange })`, `insertionTarget(rectangles, point)`, and `destroy()`.
 
-- [ ] **Step 1: Write failing geometry and interaction tests**
+- [x] **Step 1: Write failing geometry and interaction tests**
 
 ```js
 import assert from "node:assert/strict";
@@ -609,13 +611,13 @@ test("returns null for an invalid or unreachable target", () => {
 
 Add controller tests with minimal fake elements to prove movement below six pixels does not start a drag, `Escape` cancels without action, pointer release emits one `move-card`, and keyboard menu intents call the same action boundary.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 Run: `node --test tests/sortable-controller.test.mjs`
 
 Expected: FAIL with `ERR_MODULE_NOT_FOUND`.
 
-- [ ] **Step 3: Implement the local Pointer Events state machine**
+- [x] **Step 3: Implement the local Pointer Events state machine**
 
 ```js
 export const DRAG_THRESHOLD_PX = 6;
