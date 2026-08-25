@@ -6,13 +6,32 @@ import {
 } from "./site-accent.mjs";
 
 function requireModel(model) {
-  if (!model || typeof model !== "object" || !Array.isArray(model.groups)) {
-    throw new TypeError("A shelf model is required");
+  if (!model || typeof model !== "object" || !Array.isArray(model.categories)) {
+    throw new TypeError("An organized shelf model is required");
+  }
+  for (const category of model.categories) {
+    if (
+      !category
+      || typeof category.id !== "string"
+      || typeof category.name !== "string"
+      || !["system", "custom"].includes(category.kind)
+      || typeof category.collapsed !== "boolean"
+      || !Array.isArray(category.cards)
+    ) {
+      throw new TypeError("An organized shelf category is invalid");
+    }
   }
 }
 
 function requireCallbacks(callbacks) {
-  for (const name of ["onActivate", "onClose", "onCloseGroup"]) {
+  for (const name of [
+    "onActivate",
+    "onClose",
+    "onCloseGroup",
+    "onWorkspaceAction",
+    "onCreateCategory",
+    "onEditCategory",
+  ]) {
     if (typeof callbacks?.[name] !== "function") {
       throw new TypeError(`Missing shelf callback: ${name}`);
     }
@@ -30,25 +49,34 @@ function tabTree(tab) {
   });
 }
 
+function cardTree(group) {
+  const tabs = Object.freeze(group.tabs.map(tabTree));
+  return Object.freeze({
+    role: "site-card",
+    key: group.key,
+    label: group.label,
+    accent: fallbackAccentForDomain(group.key),
+    tabIds: Object.freeze(tabs.map((tab) => tab.id)),
+    children: Object.freeze([
+      Object.freeze({ role: "site-card-header", tabCount: tabs.length }),
+      Object.freeze({ role: "site-card-tabs", children: tabs }),
+      Object.freeze({ role: "site-card-footer", tabCount: tabs.length }),
+    ]),
+  });
+}
+
 export function buildShelfTree(model) {
   requireModel(model);
   return Object.freeze({
-    role: "card-grid",
-    children: Object.freeze(model.groups.map((group) => {
-      const tabs = Object.freeze(group.tabs.map(tabTree));
-      return Object.freeze({
-        role: "site-card",
-        key: group.key,
-        label: group.label,
-        accent: fallbackAccentForDomain(group.key),
-        tabIds: Object.freeze(tabs.map((tab) => tab.id)),
-        children: Object.freeze([
-          Object.freeze({ role: "site-card-header", tabCount: tabs.length }),
-          Object.freeze({ role: "site-card-tabs", children: tabs }),
-          Object.freeze({ role: "site-card-footer", tabCount: tabs.length }),
-        ]),
-      });
-    })),
+    role: "workspace",
+    children: Object.freeze(model.categories.map((category) => Object.freeze({
+      role: "category-section",
+      id: category.id,
+      name: category.name,
+      kind: category.kind,
+      collapsed: category.collapsed,
+      cards: Object.freeze(category.cards.map(cardTree)),
+    }))),
   });
 }
 
@@ -136,8 +164,119 @@ function renderTab(document, tab, callbacks, onFavicon) {
   });
 }
 
-function renderCard(document, card, callbacks) {
+function moveCardAction(card, category, beforeDomain) {
+  return {
+    type: "move-card",
+    domain: card.key,
+    toGroupId: category.id,
+    beforeDomain,
+    visibleDomains: category.cards.map(({ key }) => key),
+  };
+}
+
+function renderCardMoveMenu(document, card, category, categories, callbacks) {
+  const index = category.cards.findIndex(({ key }) => key === card.key);
+  const controls = [];
+  if (index > 0) {
+    controls.push(element(document, "button", {
+      className: "move-menu__item",
+      type: "button",
+      text: "Move before previous card",
+      dataset: { action: "move-card-earlier" },
+      on: {
+        click: () => callbacks.onWorkspaceAction(
+          moveCardAction(card, category, category.cards[index - 1].key),
+        ),
+      },
+    }));
+  }
+  if (index >= 0 && index < category.cards.length - 1) {
+    controls.push(element(document, "button", {
+      className: "move-menu__item",
+      type: "button",
+      text: "Move after next card",
+      dataset: { action: "move-card-later" },
+      on: {
+        click: () => callbacks.onWorkspaceAction(
+          moveCardAction(card, category, category.cards[index + 2]?.key ?? null),
+        ),
+      },
+    }));
+  }
+  for (const destination of categories) {
+    if (destination.id === category.id) continue;
+    controls.push(element(document, "button", {
+      className: "move-menu__item",
+      type: "button",
+      text: `Move to ${destination.name}`,
+      dataset: {
+        action: "move-card-to-category",
+        groupId: destination.id,
+      },
+      on: {
+        click: () => callbacks.onWorkspaceAction({
+          type: "move-card",
+          domain: card.key,
+          toGroupId: destination.id,
+          beforeDomain: null,
+          visibleDomains: destination.cards.map(({ key }) => key),
+        }),
+      },
+    }));
+  }
+  controls.push(element(document, "button", {
+    className: "move-menu__item",
+    type: "button",
+    text: "New category…",
+    dataset: { action: "new-category-for-card" },
+    on: { click: () => callbacks.onCreateCategory(card.key) },
+  }));
+  const menu = element(document, "div", {
+    className: "move-menu card-move-menu",
+    attributes: {
+      id: `move-menu-${card.key}`,
+      role: "menu",
+      "aria-label": `Move ${card.label}`,
+    },
+    children: controls,
+  });
+  menu.hidden = true;
+  return menu;
+}
+
+function menuToggle(button, menu) {
+  let open = false;
+  return () => {
+    open = !open;
+    menu.hidden = !open;
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+  };
+}
+
+function renderCard(document, card, category, categories, callbacks) {
   const countLabel = labelForCount(card.tabIds.length);
+  const moveMenu = renderCardMoveMenu(document, card, category, categories, callbacks);
+  let moveHandle;
+  let toggleMoveMenu;
+  moveHandle = element(document, "button", {
+    className: "sort-handle site-card__move-handle",
+    type: "button",
+    text: "⠿",
+    dataset: {
+      action: "card-move-menu",
+      sortKind: "card",
+      domain: card.key,
+      groupId: category.id,
+    },
+    attributes: {
+      "aria-label": `Move ${card.label}`,
+      "aria-controls": `move-menu-${card.key}`,
+      "aria-expanded": "false",
+      title: `Move ${card.label}`,
+    },
+    on: { click: () => toggleMoveMenu() },
+  });
+  toggleMoveMenu = menuToggle(moveHandle, moveMenu);
   const header = element(document, "header", {
     className: "site-card__header",
     children: [
@@ -155,6 +294,7 @@ function renderCard(document, card, callbacks) {
         className: "site-card__count",
         text: countLabel,
       }),
+      moveHandle,
     ],
   });
   const tabSection = card.children.find((child) => child.role === "site-card-tabs");
@@ -182,7 +322,8 @@ function renderCard(document, card, callbacks) {
   const article = element(document, "article", {
     className: "site-card",
     attributes: { "aria-labelledby": `site-${card.key}` },
-    children: [header, tabs, footer],
+    dataset: { domain: card.key, groupId: category.id },
+    children: [header, moveMenu, tabs, footer],
   });
   applySiteAccent(article, card.accent);
 
@@ -195,6 +336,161 @@ function renderCard(document, card, callbacks) {
     if (favicon.complete && favicon.naturalWidth > 0) updateAccent();
   }
   return article;
+}
+
+function renderCategoryMoveMenu(document, category, categories, callbacks) {
+  const index = categories.findIndex(({ id }) => id === category.id);
+  const controls = [];
+  if (index > 0) {
+    controls.push(element(document, "button", {
+      className: "move-menu__item",
+      type: "button",
+      text: "Move category up",
+      dataset: { action: "move-category-earlier" },
+      on: { click: () => callbacks.onWorkspaceAction({
+        type: "move-category",
+        groupId: category.id,
+        beforeGroupId: categories[index - 1].id,
+      }) },
+    }));
+  }
+  if (index >= 0 && index < categories.length - 1) {
+    controls.push(element(document, "button", {
+      className: "move-menu__item",
+      type: "button",
+      text: "Move category down",
+      dataset: { action: "move-category-later" },
+      on: { click: () => callbacks.onWorkspaceAction({
+        type: "move-category",
+        groupId: category.id,
+        beforeGroupId: categories[index + 2]?.id ?? null,
+      }) },
+    }));
+  }
+  const menu = element(document, "div", {
+    className: "move-menu category-move-menu",
+    attributes: {
+      id: `category-move-menu-${category.id}`,
+      role: "menu",
+      "aria-label": `Move ${category.name}`,
+    },
+    children: controls,
+  });
+  menu.hidden = true;
+  return menu;
+}
+
+function renderCategory(document, category, categories, callbacks) {
+  const headingId = `category-${category.id}`;
+  const moveMenu = renderCategoryMoveMenu(document, category, categories, callbacks);
+  let moveHandle;
+  let toggleMoveMenu;
+  moveHandle = element(document, "button", {
+    className: "sort-handle category-section__move-handle",
+    type: "button",
+    text: "⠿",
+    dataset: {
+      action: "category-move-menu",
+      sortKind: "category",
+      groupId: category.id,
+    },
+    attributes: {
+      "aria-label": `Move ${category.name}`,
+      "aria-controls": `category-move-menu-${category.id}`,
+      "aria-expanded": "false",
+      title: `Move ${category.name}`,
+    },
+    on: { click: () => toggleMoveMenu() },
+  });
+  toggleMoveMenu = menuToggle(moveHandle, moveMenu);
+  const headerControls = [
+    moveHandle,
+    element(document, "button", {
+      className: "category-section__collapse",
+      type: "button",
+      text: category.collapsed ? "Expand" : "Collapse",
+      dataset: { action: "toggle-category", groupId: category.id },
+      attributes: {
+        "aria-expanded": category.collapsed ? "false" : "true",
+        "aria-controls": `category-cards-${category.id}`,
+      },
+      on: { click: () => callbacks.onWorkspaceAction({
+        type: "toggle-category",
+        groupId: category.id,
+      }) },
+    }),
+  ];
+  if (category.kind === "custom") {
+    headerControls.push(
+      element(document, "button", {
+        className: "category-section__action",
+        type: "button",
+        text: "Rename",
+        dataset: { action: "rename-category", groupId: category.id },
+        on: { click: () => callbacks.onEditCategory({
+          id: category.id,
+          name: category.name,
+        }) },
+      }),
+      element(document, "button", {
+        className: "category-section__action category-section__action--delete",
+        type: "button",
+        text: "Delete",
+        dataset: { action: "delete-category", groupId: category.id },
+        on: { click: () => callbacks.onWorkspaceAction({
+          type: "delete-category",
+          groupId: category.id,
+        }) },
+      }),
+    );
+  }
+
+  const header = element(document, "header", {
+    className: "category-section__header",
+    children: [
+      element(document, "h3", {
+        className: "category-section__title",
+        text: category.name,
+        attributes: { id: headingId },
+      }),
+      element(document, "span", {
+        className: "category-section__count",
+        text: `${category.cards.length} ${category.cards.length === 1 ? "domain" : "domains"}`,
+      }),
+      ...headerControls,
+      moveMenu,
+    ],
+  });
+  const cards = category.cards.map((card) => renderCard(
+    document,
+    card,
+    category,
+    categories,
+    callbacks,
+  ));
+  if (category.kind === "custom" && cards.length === 0) {
+    cards.push(element(document, "p", {
+      className: "category-empty-target",
+      text: "Move a domain here",
+      dataset: { groupId: category.id, dropKind: "card" },
+    }));
+  }
+  const grid = element(document, "div", {
+    className: "card-grid category-card-grid",
+    dataset: { groupId: category.id, dropKind: "card" },
+    attributes: {
+      id: `category-cards-${category.id}`,
+      ...(category.collapsed ? { hidden: "" } : {}),
+    },
+    children: cards,
+  });
+
+  return element(document, "section", {
+    className: "category-section",
+    dataset: { groupId: category.id },
+    attributes: { "aria-labelledby": headingId },
+    children: [header, grid],
+  });
 }
 
 export function renderShelf(document, root, model, callbacks) {
@@ -215,7 +511,12 @@ export function renderShelf(document, root, model, callbacks) {
     }));
     return tree;
   }
-  root.replaceChildren(...tree.children.map((card) => renderCard(document, card, callbacks)));
+  root.replaceChildren(...tree.children.map((category) => renderCategory(
+    document,
+    category,
+    tree.children,
+    callbacks,
+  )));
   return tree;
 }
 

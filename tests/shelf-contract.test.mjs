@@ -15,7 +15,8 @@ test("new-tab document has one semantic shelf structure", () => {
   assert.match(html, /<main class="shelf-app"/);
   assert.match(html, /<h1 id="greeting"/);
   assert.match(html, /<h2 id="inventory-title"/);
-  assert.match(html, /id="card-grid" class="card-grid"/);
+  assert.match(html, /id="workspace-root" class="workspace-root"/);
+  assert.match(html, /id="new-category"/);
   assert.match(html, /id="status" role="status"/);
   assert.match(html, /Tab Shelf by James Li/);
   assert.match(html, /<script type="module" src="shelf\.mjs"><\/script>/);

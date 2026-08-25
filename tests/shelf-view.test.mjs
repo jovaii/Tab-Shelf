@@ -98,12 +98,25 @@ const sampleModel = {
   ],
 };
 
-test("builds every website as one structurally equal card", () => {
+sampleModel.categories = [
+  {
+    id: "system:other",
+    name: "Other",
+    kind: "system",
+    collapsed: false,
+    cards: sampleModel.groups,
+  },
+];
+
+test("builds categorized websites as structurally equal cards", () => {
   const tree = buildShelfTree(sampleModel);
 
-  assert.equal(tree.role, "card-grid");
-  assert.equal(tree.children.length, 2);
-  for (const card of tree.children) {
+  assert.equal(tree.role, "workspace");
+  assert.equal(tree.children.length, 1);
+  assert.equal(tree.children[0].role, "category-section");
+  assert.equal(tree.children[0].id, "system:other");
+  assert.equal(tree.children[0].cards.length, 2);
+  for (const card of tree.children[0].cards) {
     assert.equal(card.role, "site-card");
     assert.deepEqual(
       card.children.map((child) => child.role),
@@ -118,7 +131,7 @@ test("builds every website as one structurally equal card", () => {
 
 test("keeps full titles as text and exposes duplicate state", () => {
   const tree = buildShelfTree(sampleModel);
-  const firstTab = tree.children[0].children[1].children[0];
+  const firstTab = tree.children[0].cards[0].children[1].children[0];
 
   assert.equal(firstTab.title, "A title with <b>markup-like text</b>");
   assert.equal(firstTab.isDuplicate, true);
@@ -127,9 +140,10 @@ test("keeps full titles as text and exposes duplicate state", () => {
 
 test("gives every card a stable domain accent in the render model", () => {
   const tree = buildShelfTree(sampleModel);
+  const cards = tree.children[0].cards;
 
-  for (const card of tree.children) assert.match(card.accent, /^#[0-9a-f]{6}$/u);
-  assert.notEqual(tree.children[0].accent, tree.children[1].accent);
+  for (const card of cards) assert.match(card.accent, /^#[0-9a-f]{6}$/u);
+  assert.notEqual(cards[0].accent, cards[1].accent);
 });
 
 test("renders safe DOM and emits typed actions", () => {
@@ -140,6 +154,9 @@ test("renders safe DOM and emits typed actions", () => {
     onActivate: (tabId) => actions.push(["activate", tabId]),
     onClose: (tabId) => actions.push(["close", tabId]),
     onCloseGroup: (tabIds) => actions.push(["close-group", tabIds]),
+    onWorkspaceAction: (action) => actions.push(["workspace", action]),
+    onCreateCategory: () => undefined,
+    onEditCategory: () => undefined,
   });
 
   const nodes = walk(root);
@@ -171,6 +188,9 @@ test("applies domain accents immediately and upgrades from the first usable favi
     onActivate() {},
     onClose() {},
     onCloseGroup() {},
+    onWorkspaceAction() {},
+    onCreateCategory() {},
+    onEditCategory() {},
   });
 
   const cards = walk(root).filter((node) => node.className === "site-card");
@@ -199,6 +219,138 @@ test("applies domain accents immediately and upgrades from the first usable favi
   favicon.dispatch("load");
 
   assert.notEqual(cards[0].style.properties.get("--site-accent"), initialAccent);
+});
+
+test("renders category sections with accessible handles and an empty custom target", () => {
+  const root = new FakeNode("div");
+  const actions = [];
+  const creates = [];
+  const edits = [];
+  const organized = {
+    ...sampleModel,
+    categories: [
+      {
+        id: "system:other",
+        name: "Other",
+        kind: "system",
+        collapsed: false,
+        cards: [sampleModel.groups[0]],
+      },
+      {
+        id: "custom:focus",
+        name: "Focus",
+        kind: "custom",
+        collapsed: false,
+        cards: [],
+      },
+    ],
+  };
+
+  renderShelf(fakeDocument, root, organized, {
+    onActivate() {},
+    onClose() {},
+    onCloseGroup() {},
+    onWorkspaceAction: (action) => actions.push(action),
+    onCreateCategory: (domain) => creates.push(domain),
+    onEditCategory: (category) => edits.push(category),
+  });
+
+  const nodes = walk(root);
+  assert.equal(nodes.filter((node) => node.className === "category-section").length, 2);
+  assert.equal(
+    nodes.some((node) => node.attributes.get("aria-label") === "Move alpha.test"),
+    true,
+  );
+  assert.equal(
+    nodes.some((node) => node.attributes.get("aria-label") === "Move Other"),
+    true,
+  );
+  assert.equal(nodes.some((node) => node.className === "category-empty-target"), true);
+  assert.equal(
+    nodes.some((node) => node.dataset.sortKind === "card" && node.dataset.groupId === "system:other"),
+    true,
+  );
+
+  const cardHandle = nodes.find((node) => node.dataset.action === "card-move-menu");
+  const cardMenu = nodes.find((node) => node.className === "move-menu card-move-menu");
+  assert.equal(cardMenu.hidden, true);
+  cardHandle.click();
+  assert.equal(cardMenu.hidden, false);
+  cardHandle.click();
+  assert.equal(cardMenu.hidden, true);
+
+  nodes.find((node) => node.dataset.action === "toggle-category").click();
+  nodes.find((node) => node.dataset.action === "rename-category").click();
+  nodes.find((node) => node.dataset.action === "delete-category").click();
+  nodes.find((node) => node.dataset.action === "new-category-for-card").click();
+  assert.deepEqual(actions, [
+    { type: "toggle-category", groupId: "system:other" },
+    { type: "delete-category", groupId: "custom:focus" },
+  ]);
+  assert.deepEqual(creates, ["alpha.test"]);
+  assert.deepEqual(edits, [{ id: "custom:focus", name: "Focus" }]);
+});
+
+test("card and category keyboard controls emit the shared move actions", () => {
+  const root = new FakeNode("div");
+  const actions = [];
+  const organized = {
+    ...sampleModel,
+    categories: [
+      {
+        id: "system:other",
+        name: "Other",
+        kind: "system",
+        collapsed: false,
+        cards: sampleModel.groups,
+      },
+      {
+        id: "custom:focus",
+        name: "Focus",
+        kind: "custom",
+        collapsed: false,
+        cards: [],
+      },
+    ],
+  };
+  renderShelf(fakeDocument, root, organized, {
+    onActivate() {},
+    onClose() {},
+    onCloseGroup() {},
+    onWorkspaceAction: (action) => actions.push(action),
+    onCreateCategory() {},
+    onEditCategory() {},
+  });
+
+  const nodes = walk(root);
+  nodes.find((node) => node.dataset.action === "move-card-later").click();
+  nodes.find((node) => (
+    node.dataset.action === "move-card-to-category"
+    && node.dataset.groupId === "custom:focus"
+  )).click();
+  nodes.find((node) => node.dataset.action === "move-category-later").click();
+
+  assert.deepEqual(actions, [
+    {
+      type: "move-card",
+      domain: "alpha.test",
+      toGroupId: "system:other",
+      beforeDomain: null,
+      visibleDomains: ["alpha.test", "beta.test"],
+    },
+    {
+      type: "move-card",
+      domain: "alpha.test",
+      toGroupId: "custom:focus",
+      beforeDomain: null,
+      visibleDomains: [],
+    },
+    {
+      type: "move-category",
+      groupId: "system:other",
+      beforeGroupId: null,
+    },
+  ]);
 });
 
 test("DOM helper rejects HTML and event attributes", () => {

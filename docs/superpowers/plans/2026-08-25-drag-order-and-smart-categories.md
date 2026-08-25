@@ -489,11 +489,13 @@ git commit -m "feat: persist Safari workspace layout"
 - Modify: `extension/shelf.html`
 - Modify: `tests/shelf-view.test.mjs`
 - Modify: `tests/shelf-contract.test.mjs`
+- Modify: `scripts/app-store-release-profile.mjs`
+- Modify: `scripts/check-app-store-readiness.mjs`
 
 **Interfaces:**
 - Consumes: the organized model from `buildWorkspaceView()`.
 - Produces category section DOM, card/category handles, typed menu actions, empty custom-category targets, and a `New category` request.
-- Extends callbacks with `onWorkspaceAction(action)` and `onCreateCategory()`.
+- Extends callbacks with `onWorkspaceAction(action)`, `onCreateCategory(domain?)`, and `onEditCategory(category)`. The latter two request the bounded dialog implemented by Task 7; they never accept or inject markup.
 
 - [ ] **Step 1: Write failing semantic view tests**
 
