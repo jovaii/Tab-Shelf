@@ -393,6 +393,8 @@ git commit -m "feat: add immutable workspace actions"
 - Modify: `scripts/preview-runtime.js`
 - Modify: `tests/safari-gateway.test.mjs`
 - Modify: `tests/preview-contract.test.mjs`
+- Modify: `scripts/app-store-release-profile.mjs`
+- Modify: `scripts/check-app-store-readiness.mjs`
 
 **Interfaces:**
 - Consumes: `WORKSPACE_KEY`, `createDefaultWorkspace()`, and `validateWorkspace()`.

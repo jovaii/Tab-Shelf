@@ -90,6 +90,53 @@ test("installs deterministic local Safari APIs only in preview mode", async () =
   assert.equal(result.document.documentElement.dataset.renderReady, "pending");
 });
 
+test("keeps preview storage keys separate and emits local change records", async () => {
+  const result = runPreviewRuntime({
+    href: "http://127.0.0.1:4173/shelf.html?preview=1",
+  });
+  const changes = [];
+  const listener = (change, area) => changes.push([structuredClone(change), area]);
+  result.browser.storage.onChanged.addListener(listener);
+
+  await result.browser.storage.local.set({
+    "tabShelf.preferences.v1": { schema: "tabShelf.preferences.v1", preset: "mist-teal" },
+  });
+  await result.browser.storage.local.set({
+    "tabShelf.workspace.v1": { schema: "tabShelf.workspace.v1", revision: 1 },
+  });
+
+  assert.deepEqual(
+    structuredClone(await result.browser.storage.local.get("tabShelf.preferences.v1")),
+    { "tabShelf.preferences.v1": { schema: "tabShelf.preferences.v1", preset: "mist-teal" } },
+  );
+  assert.deepEqual(
+    structuredClone(await result.browser.storage.local.get("tabShelf.workspace.v1")),
+    { "tabShelf.workspace.v1": { schema: "tabShelf.workspace.v1", revision: 1 } },
+  );
+  assert.deepEqual(
+    structuredClone(await result.browser.storage.local.get({ missing: undefined })),
+    { missing: undefined },
+  );
+  assert.deepEqual(changes, [
+    [{
+      "tabShelf.preferences.v1": {
+        oldValue: undefined,
+        newValue: { schema: "tabShelf.preferences.v1", preset: "mist-teal" },
+      },
+    }, "local"],
+    [{
+      "tabShelf.workspace.v1": {
+        oldValue: undefined,
+        newValue: { schema: "tabShelf.workspace.v1", revision: 1 },
+      },
+    }, "local"],
+  ]);
+
+  result.browser.storage.onChanged.removeListener(listener);
+  await result.browser.storage.local.set({ "tabShelf.workspace.v1": { revision: 2 } });
+  assert.equal(changes.length, 2);
+});
+
 test("production extension modules never read preview fixtures", () => {
   const production = [
     "extension/background.js",

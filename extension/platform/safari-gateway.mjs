@@ -5,6 +5,11 @@ import {
   importPreferences,
   validatePreferences,
 } from "../core/preferences.mjs";
+import {
+  WORKSPACE_KEY,
+  createDefaultWorkspace,
+  validateWorkspace,
+} from "../core/workspace.mjs";
 
 const REQUIRED_METHODS = Object.freeze([
   ["tabs", "query"],
@@ -65,6 +70,10 @@ async function platformCall(code, message, operation) {
 
 function detachedPreferences(value) {
   return JSON.parse(exportPreferences(value));
+}
+
+function detachedWorkspace(value) {
+  return JSON.parse(JSON.stringify(validateWorkspace(value)));
 }
 
 export function createSafariGateway(browserApi) {
@@ -167,6 +176,80 @@ export function createSafariGateway(browserApi) {
     );
   }
 
+  async function getWorkspace() {
+    const stored = await platformCall(
+      "WORKSPACE_READ_FAILED",
+      "Tab Shelf workspace could not be read",
+      () => browserApi.storage.local.get(WORKSPACE_KEY),
+    );
+    if (!stored || typeof stored !== "object" || !(WORKSPACE_KEY in stored)) {
+      return createDefaultWorkspace();
+    }
+    try {
+      return validateWorkspace(stored[WORKSPACE_KEY]);
+    } catch {
+      throw new TabShelfPlatformError("WORKSPACE_INVALID", "Stored workspace is invalid");
+    }
+  }
+
+  async function setWorkspace(value) {
+    let workspace;
+    try {
+      workspace = detachedWorkspace(value);
+    } catch {
+      throw new TabShelfPlatformError("WORKSPACE_INVALID", "Workspace is invalid");
+    }
+    await platformCall(
+      "WORKSPACE_WRITE_FAILED",
+      "Tab Shelf workspace could not be saved",
+      () => browserApi.storage.local.set({ [WORKSPACE_KEY]: workspace }),
+    );
+  }
+
+  async function resetWorkspace() {
+    await setWorkspace(createDefaultWorkspace());
+  }
+
+  function onWorkspaceChanged(listener) {
+    if (typeof listener !== "function") {
+      throw new TypeError("Workspace change listener must be a function");
+    }
+    const event = browserApi.storage.onChanged;
+    if (
+      !event
+      || typeof event.addListener !== "function"
+      || typeof event.removeListener !== "function"
+    ) {
+      return () => undefined;
+    }
+    const handler = (changes, areaName) => {
+      if (
+        areaName !== "local"
+        || !changes
+        || typeof changes !== "object"
+        || !Object.hasOwn(changes, WORKSPACE_KEY)
+      ) return;
+      const record = changes[WORKSPACE_KEY];
+      if (!record || typeof record !== "object" || !Object.hasOwn(record, "newValue")) return;
+      let workspace;
+      try {
+        workspace = record.newValue === undefined
+          ? createDefaultWorkspace()
+          : validateWorkspace(record.newValue);
+      } catch {
+        return;
+      }
+      listener(workspace);
+    };
+    event.addListener(handler);
+    let subscribed = true;
+    return () => {
+      if (!subscribed) return;
+      subscribed = false;
+      event.removeListener(handler);
+    };
+  }
+
   async function openOwnedPage(path) {
     const url = browserApi.runtime.getURL(path);
     if (typeof url !== "string" || !url.startsWith(extensionOrigin())) {
@@ -203,6 +286,10 @@ export function createSafariGateway(browserApi) {
     closeTabs,
     getPreferences,
     setPreferences,
+    getWorkspace,
+    setWorkspace,
+    resetWorkspace,
+    onWorkspaceChanged,
     openShelf: () => openOwnedPage("shelf.html"),
     openSettings: () => openOwnedPage("settings.html"),
     setBadge,

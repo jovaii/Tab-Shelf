@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { preferencesFromPreset } from "../extension/core/preferences.mjs";
+import { createDefaultWorkspace } from "../extension/core/workspace.mjs";
 import {
   TabShelfPlatformError,
   createSafariGateway,
@@ -27,6 +28,9 @@ function fakeBrowser(overrides = {}) {
         set: async () => undefined,
         ...overrides.storageLocal,
       },
+      ...(overrides.storageOnChanged
+        ? { onChanged: overrides.storageOnChanged }
+        : {}),
     },
     runtime: {
       getURL: (path) => `safari-web-extension://independent/${path}`,
@@ -112,6 +116,85 @@ test("validates and stores a detached preference document", async () => {
   preferences.preset = "custom";
 
   assert.equal(writes[0]["tabShelf.preferences.v1"].preset, "mist-teal");
+});
+
+test("loads, validates, stores, resets, and observes the separate workspace", async () => {
+  const writes = [];
+  const removed = [];
+  let changeListener;
+  const storageOnChanged = {
+    addListener(listener) {
+      changeListener = listener;
+    },
+    removeListener(listener) {
+      removed.push(listener);
+    },
+  };
+  const gateway = createSafariGateway(fakeBrowser({
+    storageLocal: {
+      get: async () => ({}),
+      set: async (value) => writes.push(value),
+    },
+    storageOnChanged,
+  }));
+
+  const workspace = await gateway.getWorkspace();
+  assert.equal(workspace.schema, "tabShelf.workspace.v1");
+  await gateway.setWorkspace(workspace);
+  assert.equal(writes[0]["tabShelf.workspace.v1"].schema, "tabShelf.workspace.v1");
+  assert.notEqual(writes[0]["tabShelf.workspace.v1"], workspace);
+
+  const changes = [];
+  const unsubscribe = gateway.onWorkspaceChanged((value) => changes.push(value));
+  changeListener({
+    "tabShelf.workspace.v1": { newValue: writes[0]["tabShelf.workspace.v1"] },
+  }, "sync");
+  assert.equal(changes.length, 0);
+  changeListener({
+    "tabShelf.workspace.v1": { newValue: writes[0]["tabShelf.workspace.v1"] },
+  }, "local");
+  assert.equal(changes.length, 1);
+  assert.equal(Object.isFrozen(changes[0]), true);
+  unsubscribe();
+  assert.deepEqual(removed, [changeListener]);
+
+  await gateway.resetWorkspace();
+  assert.deepEqual(writes.at(-1)["tabShelf.workspace.v1"], createDefaultWorkspace());
+});
+
+test("normalizes invalid workspace reads and writes without exposing stored data", async () => {
+  const gateway = createSafariGateway(fakeBrowser({
+    storageLocal: {
+      get: async () => ({
+        "tabShelf.workspace.v1": { schema: "wrong", privateValue: "never expose" },
+      }),
+    },
+  }));
+
+  await assert.rejects(
+    () => gateway.getWorkspace(),
+    (error) => {
+      assert.equal(error.code, "WORKSPACE_INVALID");
+      assert.equal(error.message.includes("never expose"), false);
+      return true;
+    },
+  );
+  await assert.rejects(
+    () => gateway.setWorkspace({ schema: "wrong", privateValue: "never expose" }),
+    (error) => {
+      assert.equal(error.code, "WORKSPACE_INVALID");
+      assert.equal(error.message.includes("never expose"), false);
+      return true;
+    },
+  );
+});
+
+test("keeps workspace subscriptions optional and validates listeners", () => {
+  const gateway = createSafariGateway(fakeBrowser());
+  assert.throws(() => gateway.onWorkspaceChanged(null), /listener/i);
+  const unsubscribe = gateway.onWorkspaceChanged(() => undefined);
+  assert.equal(typeof unsubscribe, "function");
+  assert.doesNotThrow(unsubscribe);
 });
 
 test("opens only owned extension pages", async () => {

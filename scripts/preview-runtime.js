@@ -9,9 +9,11 @@
   }
   if (!fixture || !Array.isArray(fixture.tabs)) return;
 
-  const clone = (value) => JSON.parse(JSON.stringify(value));
+  const clone = (value) => value === undefined
+    ? undefined
+    : JSON.parse(JSON.stringify(value));
   let tabs = clone(fixture.tabs);
-  const storageKey = "tabShelf.preview.preferences";
+  const storageKey = "tabShelf.preview.storage.v1";
 
   function eventChannel() {
     const listeners = new Set();
@@ -33,6 +35,39 @@
   const onRemoved = eventChannel();
   const onInstalled = eventChannel();
   const onStartup = eventChannel();
+  const onStorageChanged = eventChannel();
+
+  function readStorage() {
+    const raw = globalThis.localStorage.getItem(storageKey);
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function selectedStorage(values, key) {
+    if (typeof key === "string") {
+      return Object.prototype.hasOwnProperty.call(values, key)
+        ? { [key]: clone(values[key]) }
+        : {};
+    }
+    if (Array.isArray(key)) {
+      return Object.fromEntries(key
+        .filter((entry) => typeof entry === "string" && Object.prototype.hasOwnProperty.call(values, entry))
+        .map((entry) => [entry, clone(values[entry])]));
+    }
+    if (key === null || key === undefined) return clone(values);
+    if (typeof key === "object") {
+      return Object.fromEntries(Object.entries(key).map(([entry, fallback]) => [
+        entry,
+        Object.prototype.hasOwnProperty.call(values, entry) ? clone(values[entry]) : clone(fallback),
+      ]));
+    }
+    return {};
+  }
 
   function ownedUrl(path) {
     if (path === "") return `${globalThis.location.origin}/`;
@@ -74,20 +109,26 @@
     }),
     storage: Object.freeze({
       local: Object.freeze({
-        get: async (key) => {
-          const raw = globalThis.localStorage.getItem(storageKey);
-          if (!raw) return {};
-          try {
-            return { [key]: JSON.parse(raw) };
-          } catch {
-            return {};
-          }
-        },
+        get: async (key) => selectedStorage(readStorage(), key),
         set: async (value) => {
-          const [entry] = Object.values(value);
-          globalThis.localStorage.setItem(storageKey, JSON.stringify(entry));
+          if (!value || typeof value !== "object" || Array.isArray(value)) {
+            throw new TypeError("Preview storage value must be an object");
+          }
+          const stored = readStorage();
+          const changes = {};
+          for (const [key, entry] of Object.entries(value)) {
+            const oldValue = Object.prototype.hasOwnProperty.call(stored, key)
+              ? clone(stored[key])
+              : undefined;
+            const newValue = clone(entry);
+            stored[key] = newValue;
+            changes[key] = { oldValue, newValue: clone(newValue) };
+          }
+          globalThis.localStorage.setItem(storageKey, JSON.stringify(stored));
+          if (Object.keys(changes).length > 0) onStorageChanged.emit(changes, "local");
         },
       }),
+      onChanged: onStorageChanged,
     }),
     runtime: Object.freeze({
       getURL: ownedUrl,
