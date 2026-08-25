@@ -51,10 +51,10 @@ const APPROVED_XCODE_PROFILE = Object.freeze({
   lastSwiftUpdateCheck: "2660",
   lastUpgradeCheck: "2660",
 });
-const APPROVED_PROFILE_SEAL = "7da2c5797771d9105e914eba11e298eb6b5ab9ef6b64abbf4751e0f149eab47e";
+const APPROVED_PROFILE_SEAL = "9c5e356067a1da5f37c39952f708b769fe51415c6d2eda0826163648d05ecb53";
 const APPROVED_EXTENSION_PATHS = Object.freeze([
   "background.js", "core", "core/classifier.mjs", "core/preferences.mjs", "core/tab-model.mjs",
-  "core/workspace.mjs", "icons",
+  "core/workspace-actions.mjs", "core/workspace.mjs", "icons",
   "icons/icon-128.png", "icons/icon-16.png", "icons/icon-256.png", "icons/icon-32.png",
   "icons/icon-48.png", "icons/icon-512.png", "icons/icon-64.png", "icons/icon-96.png",
   "manifest.json", "platform", "platform/safari-gateway.mjs", "popup.css", "popup.html",
@@ -91,7 +91,7 @@ const APPROVED_ARTWORK_PATHS = Object.freeze([
 ].sort());
 const APPROVED_EXECUTABLE_PATHS = Object.freeze([
   "extension/background.js", "extension/core/classifier.mjs", "extension/core/preferences.mjs", "extension/core/tab-model.mjs",
-  "extension/core/workspace.mjs",
+  "extension/core/workspace-actions.mjs", "extension/core/workspace.mjs",
   "extension/platform/safari-gateway.mjs", "extension/popup.html", "extension/popup.mjs",
   "extension/settings.html", "extension/settings.mjs", "extension/shelf.html", "extension/shelf.mjs",
   "extension/ui/dom.mjs", "extension/ui/shelf-view.mjs", "extension/ui/site-accent.mjs",

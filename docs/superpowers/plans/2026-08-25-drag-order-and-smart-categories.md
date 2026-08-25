@@ -277,11 +277,15 @@ git commit -m "feat: add persistent workspace model"
 **Files:**
 - Create: `extension/core/workspace-actions.mjs`
 - Create: `tests/workspace-actions.test.mjs`
+- Modify: `extension/core/workspace.mjs`
+- Modify: `scripts/app-store-release-profile.mjs`
+- Modify: `scripts/check-app-store-readiness.mjs`
 
 **Interfaces:**
 - Consumes: a validated workspace and one typed action.
 - Produces: `applyWorkspaceAction(workspace, action): Workspace`.
 - Action types: `move-card`, `move-category`, `create-category`, `rename-category`, `toggle-category`, `delete-category`, and `reset-workspace`.
+- `move-card` may carry the current category's bounded `visibleDomains` order so a relative move remains exact even before those domains have stored order records; this transient array is never persisted as a new schema field.
 
 - [ ] **Step 1: Write failing pure-action tests**
 

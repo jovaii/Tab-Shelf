@@ -83,7 +83,7 @@ function normalizeCustomId(value) {
   return normalized;
 }
 
-function normalizeDomain(value) {
+export function normalizeWorkspaceDomain(value) {
   if (typeof value !== "string") throw new TypeError("Domain must be text");
   const normalized = value
     .trim()
@@ -144,7 +144,7 @@ function normalizeAssignments(value, admittedIds) {
   const assignments = input.map((entry) => {
     assertPlainObject(entry, "Workspace assignment");
     assertKnownKeys(entry, ASSIGNMENT_KEYS, "assignment");
-    const domain = normalizeDomain(entry.domain);
+    const domain = normalizeWorkspaceDomain(entry.domain);
     const groupId = normalizeKnownGroupId(entry.groupId, admittedIds, "Assignment group id");
     if (domains.has(domain)) throw new TypeError("Duplicate assignment domain");
     domains.add(domain);
@@ -169,7 +169,7 @@ function normalizeCardOrders(value, admittedIds, assignments) {
       MAX_RETAINED_DOMAINS,
       "2,048 retained domains",
     ).map((value) => {
-      const domain = normalizeDomain(value);
+      const domain = normalizeWorkspaceDomain(value);
       if (orderedDomains.has(domain)) throw new TypeError("Duplicate ordered domain");
       const assignedGroupId = assignmentMap.get(domain);
       if (assignedGroupId && assignedGroupId !== groupId) {
@@ -256,7 +256,7 @@ function requireShelfModel(model) {
     }
     let domain;
     try {
-      domain = normalizeDomain(group.key);
+      domain = normalizeWorkspaceDomain(group.key);
     } catch {
       throw new TypeError("Shelf model contains an invalid domain group");
     }
@@ -288,7 +288,11 @@ function orderedDefinitions(workspace) {
 function orderCards(cards, domainOrder) {
   const position = new Map(domainOrder.map((domain, index) => [domain, index]));
   return cards
-    .map((card, index) => ({ card, index, position: position.get(normalizeDomain(card.key)) }))
+    .map((card, index) => ({
+      card,
+      index,
+      position: position.get(normalizeWorkspaceDomain(card.key)),
+    }))
     .sort((left, right) => {
       const leftRank = left.position ?? Number.POSITIVE_INFINITY;
       const rightRank = right.position ?? Number.POSITIVE_INFINITY;
@@ -310,7 +314,7 @@ export function buildWorkspaceView(model, value) {
   );
 
   for (const card of model.groups) {
-    const domain = normalizeDomain(card.key);
+    const domain = normalizeWorkspaceDomain(card.key);
     const groupId = assignments.get(domain) ?? classifyDomainGroup(card);
     cardsByGroup.get(groupId).push(card);
   }
