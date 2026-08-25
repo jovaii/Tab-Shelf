@@ -12,6 +12,9 @@ import { RELEASE } from "./release-config.mjs";
 const COPYRIGHT = "Copyright 2026 James Li / Jovaii";
 const GENERATED_SWIFT_IDENTIFIER =
   'let extensionBundleIdentifier = "com.jovaii.tabshelf.Extension"';
+const LEGAL_FILES = Object.freeze(["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]);
+const LEGAL_FILE_REFERENCE_ID = "4A4F5641494C4547414C0001";
+const LEGAL_BUILD_FILE_ID = "4A4F5641494C4547414C0002";
 const TEMPLATE_ANCHORS = Object.freeze({
   "ViewController.swift": [
     [`let extensionBundleIdentifier = "${RELEASE.extensionBundleIdentifier}"`, 1, "release identifier"],
@@ -296,7 +299,7 @@ function isDirectPosition(source, mask, position) {
 
 function directAssignments(object, key) {
   const mask = codeMask(object.source);
-  const pattern = new RegExp(`^[\\t ]*${key} = ([^;\\r\\n]+);`, "gmu");
+  const pattern = new RegExp(`(?:^|;)[\\t ]*${key} = ([^;\\r\\n]+);`, "gmu");
   return [...object.source.matchAll(pattern)]
     .filter((match) => {
       const keyIndex = match.index + match[0].indexOf(key);
@@ -315,6 +318,11 @@ function requireAssignment(object, key, label) {
 
 function unquote(value) {
   return value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
+}
+
+function hasDirectAssignmentValue(object, key, expected) {
+  const values = directAssignments(object, key);
+  return values.length === 1 && unquote(values[0]) === expected;
 }
 
 function objectsWithIsa(objects, isa) {
@@ -341,23 +349,32 @@ function referencedObjectId(value, label) {
 }
 
 function configurationReferences(list, source, mask, label) {
-  const pattern = /^[\t ]*buildConfigurations = \(/gmu;
-  const listMask = codeMask(list.source);
-  const matches = [...list.source.matchAll(pattern)].filter(
+  return objectListReferences(list, "buildConfigurations", source, mask, label);
+}
+
+function objectListRange(object, key, source, mask, label) {
+  const pattern = new RegExp(`^[\\t ]*${key} = \\(`, "gmu");
+  const objectMask = codeMask(object.source);
+  const matches = [...object.source.matchAll(pattern)].filter(
     (match) => {
-      const localIndex = match.index + match[0].indexOf("buildConfigurations");
+      const localIndex = match.index + match[0].indexOf(key);
       return (
-        mask[list.sourceOffset + localIndex] &&
-        isDirectPosition(list.source, listMask, localIndex)
+        mask[object.sourceOffset + localIndex] &&
+        isDirectPosition(object.source, objectMask, localIndex)
       );
     },
   );
   if (matches.length !== 1) {
-    throw new Error(`${label} buildConfigurations: expected 1, found ${matches.length}`);
+    throw new Error(`${label} ${key}: expected 1, found ${matches.length}`);
   }
-  const openingIndex = list.sourceOffset + matches[0].index + matches[0][0].lastIndexOf("(");
+  const openingIndex = object.sourceOffset + matches[0].index + matches[0][0].lastIndexOf("(");
   const closingIndex = findClosingDelimiter(source, mask, openingIndex, "(", ")", label);
-  const contents = source.slice(openingIndex + 1, closingIndex);
+  return { start: openingIndex + 1, end: closingIndex };
+}
+
+function objectListReferences(object, key, source, mask, label) {
+  const range = objectListRange(object, key, source, mask, label);
+  const contents = source.slice(range.start, range.end);
   const contentsMask = codeMask(contents);
   return [...contents.matchAll(/[A-F0-9]{24}/gu)]
     .filter((match) => contentsMask[match.index])
@@ -383,6 +400,244 @@ function buildSettingsRange(configuration, source, mask, label) {
     configuration.sourceOffset + matches[0].index + matches[0][0].lastIndexOf("{");
   const closingIndex = findClosingDelimiter(source, mask, openingIndex, "{", "}", label);
   return { start: openingIndex + 1, end: closingIndex };
+}
+
+function requireNamedNativeTarget(objects, name, productType) {
+  const candidates = objectsWithIsa(objects, "PBXNativeTarget").filter(
+    (target) =>
+      unquote(requireAssignment(target, "name", "native target")) === name &&
+      unquote(requireAssignment(target, "productType", name)) === productType,
+  );
+  if (candidates.length !== 1) {
+    throw new Error(`${name} native targets: expected 1, found ${candidates.length}`);
+  }
+  return candidates[0];
+}
+
+function legalProjectLocations(source) {
+  const { objects, mask } = parsePBXObjects(source);
+  const appTarget = requireNamedNativeTarget(
+    objects,
+    RELEASE.productName,
+    "com.apple.product-type.application",
+  );
+  const buildPhaseIds = objectListReferences(
+    appTarget,
+    "buildPhases",
+    source,
+    mask,
+    `${RELEASE.productName} build phases`,
+  );
+  const appResourcePhases = objectsWithIsa(objects, "PBXResourcesBuildPhase").filter(
+    (phase) => buildPhaseIds.includes(phase.id),
+  );
+  if (appResourcePhases.length !== 1) {
+    throw new Error(
+      `${RELEASE.productName} resource build phases: expected 1, found ${appResourcePhases.length}`,
+    );
+  }
+  const appResourcePhaseMembership = buildPhaseIds.filter(
+    (id) => id === appResourcePhases[0].id,
+  ).length;
+  if (appResourcePhaseMembership !== 1) {
+    throw new Error(
+      `${RELEASE.productName} resource build phase membership: expected 1, found ${appResourcePhaseMembership}`,
+    );
+  }
+  const allTargetBuildPhaseIds = objectsWithIsa(objects, "PBXNativeTarget").flatMap((target) =>
+    objectListReferences(target, "buildPhases", source, mask, "native target build phases"),
+  );
+  const appResourcePhaseOwnership = allTargetBuildPhaseIds.filter(
+    (id) => id === appResourcePhases[0].id,
+  ).length;
+  if (appResourcePhaseOwnership !== 1) {
+    throw new Error(
+      `${RELEASE.productName} resource build phase ownership: expected 1, found ${appResourcePhaseOwnership}`,
+    );
+  }
+
+  const appGroups = objectsWithIsa(objects, "PBXGroup").filter(
+    (group) =>
+      hasDirectAssignmentValue(group, "path", RELEASE.productName) &&
+      hasDirectAssignmentValue(group, "sourceTree", "<group>"),
+  );
+  if (appGroups.length !== 1) {
+    throw new Error(`${RELEASE.productName} groups: expected 1, found ${appGroups.length}`);
+  }
+  const appChildIds = objectListReferences(
+    appGroups[0],
+    "children",
+    source,
+    mask,
+    `${RELEASE.productName} group`,
+  );
+  const resourceGroups = objectsWithIsa(objects, "PBXGroup").filter(
+    (group) =>
+      appChildIds.includes(group.id) &&
+      hasDirectAssignmentValue(group, "path", "Resources") &&
+      hasDirectAssignmentValue(group, "sourceTree", "<group>"),
+  );
+  if (resourceGroups.length !== 1) {
+    throw new Error(
+      `${RELEASE.productName} resource groups: expected 1, found ${resourceGroups.length}`,
+    );
+  }
+  const appResourcesGroupMembership = appChildIds.filter(
+    (id) => id === resourceGroups[0].id,
+  ).length;
+  if (appResourcesGroupMembership !== 1) {
+    throw new Error(
+      `${RELEASE.productName} Resources group membership: expected 1, found ${appResourcesGroupMembership}`,
+    );
+  }
+  const allGroupChildIds = objectsWithIsa(objects, "PBXGroup").flatMap((group) =>
+    objectListReferences(group, "children", source, mask, "PBX group children"),
+  );
+  const appResourcesGroupOwnership = allGroupChildIds.filter(
+    (id) => id === resourceGroups[0].id,
+  ).length;
+  if (appResourcesGroupOwnership !== 1) {
+    throw new Error(
+      `${RELEASE.productName} Resources group ownership: expected 1, found ${appResourcesGroupOwnership}`,
+    );
+  }
+  return Object.freeze({
+    objects,
+    mask,
+    appResourcePhase: appResourcePhases[0],
+    appResourcesGroup: resourceGroups[0],
+  });
+}
+
+export function validatePreparedLegalResources(source) {
+  const locations = legalProjectLocations(source);
+  const { objects, mask, appResourcePhase, appResourcesGroup } = locations;
+  const legalReference = requireObjectById(
+    objects,
+    LEGAL_FILE_REFERENCE_ID,
+    "PBXFileReference",
+    "Legal file reference",
+  );
+  if (
+    unquote(requireAssignment(legalReference, "lastKnownFileType", "Legal file reference")) !== "folder" ||
+    unquote(requireAssignment(legalReference, "path", "Legal file reference")) !== "Legal" ||
+    unquote(requireAssignment(legalReference, "sourceTree", "Legal file reference")) !== "<group>"
+  ) {
+    throw new Error("Legal file reference is invalid");
+  }
+  const legalReferences = objectsWithIsa(objects, "PBXFileReference").filter(
+    (reference) => hasDirectAssignmentValue(reference, "path", "Legal"),
+  );
+  if (legalReferences.length !== 1) {
+    throw new Error(`Legal file references: expected 1, found ${legalReferences.length}`);
+  }
+
+  const legalBuildFile = requireObjectById(
+    objects,
+    LEGAL_BUILD_FILE_ID,
+    "PBXBuildFile",
+    "Legal build file",
+  );
+  const referencedLegalId = referencedObjectId(
+    requireAssignment(legalBuildFile, "fileRef", "Legal build file"),
+    "Legal build file reference",
+  );
+  if (referencedLegalId !== LEGAL_FILE_REFERENCE_ID) {
+    throw new Error("Legal build file references the wrong file");
+  }
+
+  const groupReferences = objectsWithIsa(objects, "PBXGroup").flatMap((group) =>
+    objectListReferences(group, "children", source, mask, "PBX group children"),
+  );
+  const expectedGroupReferences = objectListReferences(
+    appResourcesGroup,
+    "children",
+    source,
+    mask,
+    "App Resources group children",
+  );
+  if (
+    groupReferences.filter((id) => id === LEGAL_FILE_REFERENCE_ID).length !== 1 ||
+    expectedGroupReferences.filter((id) => id === LEGAL_FILE_REFERENCE_ID).length !== 1
+  ) {
+    throw new Error("Legal folder must belong to the App Resources group exactly once");
+  }
+
+  const phaseReferences = objectsWithIsa(objects, "PBXResourcesBuildPhase").flatMap((phase) =>
+    objectListReferences(phase, "files", source, mask, "resource build phase files"),
+  );
+  const expectedPhaseReferences = objectListReferences(
+    appResourcePhase,
+    "files",
+    source,
+    mask,
+    "App Resources build phase files",
+  );
+  if (
+    phaseReferences.filter((id) => id === LEGAL_BUILD_FILE_ID).length !== 1 ||
+    expectedPhaseReferences.filter((id) => id === LEGAL_BUILD_FILE_ID).length !== 1
+  ) {
+    throw new Error("Legal folder must belong to the App Resources build phase exactly once");
+  }
+  return Object.freeze({ legalResources: "embedded" });
+}
+
+function prepareLegalProjectResources(source) {
+  const locations = legalProjectLocations(source);
+  if (
+    locations.objects.some(
+      ({ id }) => id === LEGAL_FILE_REFERENCE_ID || id === LEGAL_BUILD_FILE_ID,
+    ) ||
+    objectsWithIsa(locations.objects, "PBXFileReference").some(
+      (reference) => hasDirectAssignmentValue(reference, "path", "Legal"),
+    )
+  ) {
+    throw new Error("generated project already contains a Legal resource");
+  }
+
+  const groupRange = objectListRange(
+    locations.appResourcesGroup,
+    "children",
+    source,
+    locations.mask,
+    "App Resources group children",
+  );
+  const phaseRange = objectListRange(
+    locations.appResourcePhase,
+    "files",
+    source,
+    locations.mask,
+    "App Resources build phase files",
+  );
+  const objectMatches = [...source.matchAll(/^[\t ]*objects = \{/gmu)].filter(
+    (match) => locations.mask[match.index + match[0].indexOf("objects")],
+  );
+  if (objectMatches.length !== 1) {
+    throw new Error(`project objects dictionaries: expected 1, found ${objectMatches.length}`);
+  }
+  const objectInsertion = objectMatches[0].index + objectMatches[0][0].length;
+  const insertions = [
+    {
+      index: objectInsertion,
+      contents:
+        `\n\t\t${LEGAL_BUILD_FILE_ID} /* Legal in Resources */ = {isa = PBXBuildFile; fileRef = ${LEGAL_FILE_REFERENCE_ID} /* Legal */; };` +
+        `\n\t\t${LEGAL_FILE_REFERENCE_ID} /* Legal */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Legal; sourceTree = "<group>"; };`,
+    },
+    {
+      index: groupRange.end,
+      contents: `\n\t\t\t\t${LEGAL_FILE_REFERENCE_ID} /* Legal */,`,
+    },
+    {
+      index: phaseRange.end,
+      contents: `\n\t\t\t\t${LEGAL_BUILD_FILE_ID} /* Legal in Resources */,`,
+    },
+  ];
+  let prepared = source;
+  for (const insertion of insertions.sort((left, right) => right.index - left.index)) {
+    prepared = `${prepared.slice(0, insertion.index)}${insertion.contents}${prepared.slice(insertion.index)}`;
+  }
+  validatePreparedLegalResources(prepared);
+  return prepared;
 }
 
 function transformSetting(dictionary, key, before, after, label) {
@@ -806,6 +1061,141 @@ function unusedSibling(destination, kind) {
   throw new Error(`unable to reserve a ${kind} path beside ${destination}`);
 }
 
+function requireAbsentPath(path, label) {
+  try {
+    fs.lstatSync(path);
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+  throw new Error(`${label} already exists: ${path}`);
+}
+
+function directoryIdentity(path, label) {
+  const status = fs.lstatSync(path);
+  if (status.isSymbolicLink() || !status.isDirectory()) {
+    throw new Error(`${label} must be a directory: ${path}`);
+  }
+  return Object.freeze({ device: status.dev, inode: status.ino });
+}
+
+function requireDirectoryIdentity(path, expected, label) {
+  const current = directoryIdentity(path, label);
+  if (current.device !== expected.device || current.inode !== expected.inode) {
+    throw new Error(`${label} changed during validation: ${path}`);
+  }
+}
+
+function cleanupOwnedLegalDirectory(path, directory, files) {
+  requireDirectoryIdentity(path, directory, "generated Legal directory");
+  const expectedNames = [...files.keys()].sort();
+  const actualNames = readdirSync(path).sort();
+  if (
+    actualNames.length !== expectedNames.length ||
+    actualNames.some((name, index) => name !== expectedNames[index])
+  ) {
+    throw new Error("generated Legal directory changed during rollback");
+  }
+  for (const [name, expected] of files) {
+    const candidate = join(path, name);
+    const status = fs.lstatSync(candidate);
+    if (
+      status.isSymbolicLink() ||
+      !status.isFile() ||
+      status.dev !== expected.device ||
+      status.ino !== expected.inode ||
+      status.nlink !== 1
+    ) {
+      throw new Error("generated Legal file changed during rollback");
+    }
+  }
+  for (const name of expectedNames) fs.unlinkSync(join(path, name));
+  fs.rmdirSync(path);
+}
+
+function rollbackOwnedLegalDirectory(path, directory, files) {
+  requireDirectoryIdentity(path, directory, "generated Legal directory");
+  const rollbackRoot = fs.mkdtempSync(
+    join(dirname(path), ".tab-shelf-legal-rollback-"),
+  );
+  const quarantinedLegal = join(rollbackRoot, "Legal");
+  try {
+    fs.renameSync(path, quarantinedLegal);
+  } catch (error) {
+    try {
+      fs.rmdirSync(rollbackRoot);
+    } catch {
+      // The original rename error is authoritative; the empty, owned quarantine
+      // directory remains recoverable if its cleanup also failed.
+    }
+    throw error;
+  }
+
+  cleanupOwnedLegalDirectory(quarantinedLegal, directory, files);
+  fs.rmdirSync(rollbackRoot);
+}
+
+function errorWithRollbackFailures(error, rollbackErrors) {
+  if (rollbackErrors.length === 0) return error;
+  return new Error(
+    `${error.message}; rollback failed: ${rollbackErrors.map(({ message }) => message).join("; ")}`,
+    { cause: new AggregateError([error, ...rollbackErrors], "pre-commit rollback failed") },
+  );
+}
+
+function installLegalDirectory({ destination, parent, copies, handles }) {
+  const parentIdentity = directoryIdentity(parent, "generated App Resources directory");
+  for (const handle of handles.values()) revalidateHandle(handle);
+  requireDirectoryIdentity(parent, parentIdentity, "generated App Resources directory");
+  requireAbsentPath(destination, "generated Legal directory");
+  fs.mkdirSync(destination, { mode: 0o755 });
+  const installedDirectory = directoryIdentity(destination, "generated Legal directory");
+  const installedFiles = new Map();
+  try {
+    for (const copy of copies) {
+      const path = join(destination, copy.name);
+      const descriptor = fs.openSync(
+        path,
+        fs.constants.O_WRONLY |
+          fs.constants.O_CREAT |
+          fs.constants.O_EXCL |
+          (fs.constants.O_NOFOLLOW ?? 0),
+        0o644,
+      );
+      try {
+        const status = fs.fstatSync(descriptor);
+        if (!status.isFile() || status.nlink !== 1) {
+          throw new Error(`generated ${copy.name} must be a regular single-link file`);
+        }
+        installedFiles.set(
+          copy.name,
+          Object.freeze({ device: status.dev, inode: status.ino }),
+        );
+        fs.fchmodSync(descriptor, 0o644);
+        fs.writeFileSync(descriptor, copy.contents);
+        fs.fsyncSync(descriptor);
+      } finally {
+        fs.closeSync(descriptor);
+      }
+    }
+    for (const handle of handles.values()) revalidateHandle(handle);
+    requireDirectoryIdentity(parent, parentIdentity, "generated App Resources directory");
+    return () => rollbackOwnedLegalDirectory(
+      destination,
+      installedDirectory,
+      installedFiles,
+    );
+  } catch (error) {
+    const rollbackErrors = [];
+    try {
+      rollbackOwnedLegalDirectory(destination, installedDirectory, installedFiles);
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError);
+    }
+    throw errorWithRollbackFailures(error, rollbackErrors);
+  }
+}
+
 function unlinkTemporary(path) {
   if (!path) return;
   try {
@@ -889,7 +1279,15 @@ function commitTransaction(operations, allHandles) {
     throw new Error(`transaction failed: ${error.message}${rollbackMessage}`, { cause: error });
   }
 
-  for (const record of committed) unlinkTemporary(record.backup);
+  const cleanupErrors = [];
+  for (const record of committed) {
+    try {
+      unlinkTemporary(record.backup);
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+  }
+  return Object.freeze({ committed: true, cleanupErrors: Object.freeze(cleanupErrors) });
 }
 
 export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}) {
@@ -961,6 +1359,14 @@ export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}
     "generated App icon",
     "file",
   );
+  const appResources = resolveExistingInside(
+    repositoryRoot,
+    join(appTarget, "Resources"),
+    "generated App Resources directory",
+    "directory",
+  );
+  const legalDestination = join(appResources, "Legal");
+  requireAbsentPath(legalDestination, "generated Legal directory");
 
   const hostRoot = resolveExistingInside(
     repositoryRoot,
@@ -974,6 +1380,15 @@ export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}
     "tracked Xcode 26.6 release profile",
     "directory",
   );
+  const legalSources = LEGAL_FILES.map((name, index) => ({
+    name,
+    path: resolveExistingInside(
+      repositoryRoot,
+      join(repositoryRoot, name),
+      `tracked legal file ${index + 1}`,
+      "file",
+    ),
+  }));
   const copies = [
     {
       label: "ViewController.swift",
@@ -1035,12 +1450,18 @@ export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}
       { path: source, label: `tracked ${label}` },
       { path: destination, label: `generated ${label}` },
     ]),
+    ...legalSources.map(({ name, path }) => ({
+      path,
+      label: `tracked ${name}`,
+    })),
   ];
   const handles = openVerifiedFiles(fileEntries);
 
   try {
-    const preparedProject = prepareProjectSettings(
-      fs.readFileSync(handles.get(projectSettings).descriptor, "utf8"),
+    const preparedProject = prepareLegalProjectResources(
+      prepareProjectSettings(
+        fs.readFileSync(handles.get(projectSettings).descriptor, "utf8"),
+      ),
     );
     const originalController = fs.readFileSync(
       handles.get(generatedController).descriptor,
@@ -1059,11 +1480,23 @@ export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}
       destination,
       contents: fs.readFileSync(handles.get(source).descriptor),
     }));
+    const preparedLegalCopies = legalSources.map(({ name, path }) => ({
+      name,
+      contents: fs.readFileSync(handles.get(path).descriptor),
+    }));
     for (const { label, contents } of preparedCopies) validateTemplate(label, contents);
 
     const restoreModes = normalizeGeneratedModes(generatedModeTargets);
+    let rollbackLegal;
+    let transactionCommitted = false;
     try {
-      commitTransaction(
+      rollbackLegal = installLegalDirectory({
+        destination: legalDestination,
+        parent: appResources,
+        copies: preparedLegalCopies,
+        handles,
+      });
+      const transaction = commitTransaction(
         [
         {
           destination: projectSettings,
@@ -1078,9 +1511,34 @@ export function prepareMacOSProject({ root = process.cwd(), generatedRoot } = {}
         ],
         handles,
       );
+      transactionCommitted = transaction.committed;
+      if (transaction.cleanupErrors.length !== 0) {
+        throw new Error(
+          `transaction committed but backup cleanup failed: ${transaction.cleanupErrors.map(({ message }) => message).join("; ")}`,
+          {
+            cause: new AggregateError(
+              transaction.cleanupErrors,
+              "committed transaction backup cleanup failed",
+            ),
+          },
+        );
+      }
     } catch (error) {
-      restoreModes();
-      throw error;
+      if (transactionCommitted) throw error;
+      const rollbackErrors = [];
+      if (rollbackLegal) {
+        try {
+          rollbackLegal();
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError);
+        }
+      }
+      try {
+        restoreModes();
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+      throw errorWithRollbackFailures(error, rollbackErrors);
     }
   } finally {
     for (const handle of handles.values()) fs.closeSync(handle.descriptor);

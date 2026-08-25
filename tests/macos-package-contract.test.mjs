@@ -29,6 +29,7 @@ test("official package flow requires full Xcode and Apple's Safari packager", ()
 
 test("package validates one project, one app, final identifiers, signing, and legal files", () => {
   const script = source("scripts/package-macos.sh");
+  const preparation = source("scripts/prepare-macos-project.mjs");
 
   assert.match(script, /xcodebuild/u);
   assert.match(script, /-scheme "Tab Shelf"/u);
@@ -42,8 +43,10 @@ test("package validates one project, one app, final identifiers, signing, and le
   assert.match(script, /codesign --verify --strict/u);
   assert.match(script, /ditto -c -k --sequesterRsrc --keepParent/u);
   for (const legalFile of ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]) {
-    assert.match(script, new RegExp(legalFile.replace(".", "\\.")));
+    assert.match(preparation, new RegExp(legalFile.replace(".", "\\.")));
+    assert.doesNotMatch(script, new RegExp(`ditto "${legalFile.replace(".", "\\.")}"`));
   }
+  assert.doesNotMatch(script, /LEGAL_DIRECTORY/u);
 });
 
 test("package uses Xcode Sign to Run Locally for Safari registration", () => {

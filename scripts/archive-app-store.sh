@@ -66,4 +66,5 @@ archive_app_store_workflow \
   "/usr/libexec/PlistBuddy" \
   "/bin/mkdir" \
   "/bin/rmdir" \
-  "/usr/bin/dirname"
+  "/usr/bin/dirname" \
+  "/usr/bin/cmp"

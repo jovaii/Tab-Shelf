@@ -2,7 +2,7 @@
 
 This checklist covers the independent Tab Shelf Safari Web Extension on the current Mac. It uses no external service, account, runtime package, or remote asset.
 
-## Automated result — 24 August 2026
+## Automated and packaged result — 25 August 2026
 
 The deterministic local WebKit run passed at 1440 × 900 and 900 × 900. Each viewport verified:
 
@@ -17,6 +17,10 @@ The deterministic local WebKit run passed at 1440 × 900 and 900 × 900. Each vi
 The repository contract tests also verify the Safari-only browser API, minimal `tabs` and `storage` permissions, local-only settings, five authored themes, safe preference import, and independent PNG artwork.
 
 The visual contract additionally verifies domain-specific card accents, privacy-safe favicon sampling with deterministic fallback colors, and the approved multilingual typography stack.
+
+The final source baseline passed 275/275 automated tests. Repository audit, source readiness, generated-project readiness, strict App/extension signature verification, embedded legal-file checks, and recoverable installation passed for Tab Shelf 1.0.0 build 1 with Xcode 26.6 build 17F113. A read-only system query reported exactly one registered `com.jovaii.tabshelf.extension` entry.
+
+Four release visuals use only real Tab Shelf UI and representative synthetic content. Independent visual QA approved all four after two bounded crop/composition findings passed retest; no P0/P1/P2/P3 remains.
 
 ## Repeat the local WebKit run
 
@@ -57,6 +61,7 @@ Use disposable test tabs for close actions. Do not test closing against tabs con
 | --- | --- | --- |
 | New tab replacement | A new Safari tab opens the Tab Shelf page | Pending in the current Safari profile |
 | Real tab grouping | Ordinary HTTP(S) tabs appear once under their domain | Pending in the current Safari profile |
+| Duplicate detection | Two disposable tabs with the same canonical URL are visibly marked as duplicates | Pending in the current Safari profile |
 | Domain accents | Cards are visually distinct; readable favicons may refine their stable fallback colors | Pending in the current Safari profile |
 | Activate tab | Selecting a title focuses its Safari window and tab | Pending in the current Safari profile |
 | Close one | The selected disposable tab closes and the count updates | Pending in the current Safari profile |
@@ -70,7 +75,8 @@ Use disposable test tabs for close actions. Do not test closing against tabs con
 | Valid import | A file exported by Tab Shelf restores the same theme | Pending in the current Safari profile |
 | Invalid import | Another schema or malformed JSON is rejected without changing the saved theme | Pending in the current Safari profile |
 | Keyboard | Visible focus reaches settings, tab titles, close actions, and theme controls in logical order | Pending in the current Safari profile |
+| Reduced motion | With Reduce Motion enabled, transitions and scrolling avoid unnecessary animation | Pending in the current Safari profile |
 
 ## Release boundary
 
-Automated WebKit acceptance is complete. Real Safari profile actions remain an explicit manual confirmation because they can focus or close the user's real tabs. Full Xcode 26.6 is available on this Mac and the official local `.app` packaging flow is operational; the current build remains ad-hoc signed for personal use rather than Developer ID signed and notarized for distribution.
+Automated WebKit, source, generated-project, package, installation, and signature acceptance are complete. Real Safari profile actions remain an explicit manual confirmation because macOS Automation did not return Safari Apple Events in this execution context and tab actions can focus or close the user's real tabs. Full Xcode 26.6 is available on this Mac and the official local `.app` packaging flow is operational; the current build remains ad-hoc signed for personal use rather than Apple Distribution signed for App Store upload.

@@ -12,6 +12,7 @@ import { APP_STORE_RELEASE_PROFILE } from "./app-store-release-profile.mjs";
 import {
   readVerifiedRepositoryFile,
   resolveVerifiedRepositoryPath,
+  validatePreparedLegalResources,
   validatePreparedProjectProfile,
   validatePreparedProjectSettings,
 } from "./prepare-macos-project.mjs";
@@ -402,6 +403,9 @@ function buildGeneratedContract(sourceExtensionInventory) {
     ["Script.js", "Resources/Script.js"],
   ]) {
     addExpectedFile(expected, join(app, output));
+  }
+  for (const legalFile of LEGAL_FILES) {
+    addExpectedFile(expected, join(app, "Resources/Legal", legalFile));
   }
   addExpectedDirectory(expected, join(extension, "Resources"));
   for (const entry of sourceExtensionInventory) {
@@ -904,6 +908,15 @@ export function checkGeneratedReadiness({
       ),
     });
   }
+  for (const legalFile of LEGAL_FILES) {
+    pairs.push({
+      source: join(repositoryRoot, legalFile),
+      generated: join(appTarget, "Resources/Legal", legalFile),
+      generatedIdentity: generatedEntries.get(
+        join(RELEASE.productName, RELEASE.productName, "Resources/Legal", legalFile),
+      ),
+    });
+  }
   compareFiles(repositoryRoot, pairs);
 
   const generatedManifest = readJSON(
@@ -934,6 +947,7 @@ export function checkGeneratedReadiness({
   let projectReport;
   try {
     projectReport = validatePreparedProjectSettings(projectSource);
+    validatePreparedLegalResources(projectSource);
   } catch (error) {
     projectError(error);
   }

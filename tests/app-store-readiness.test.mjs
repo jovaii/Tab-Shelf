@@ -23,6 +23,7 @@ import {
 
 const SOURCE_ROOT = resolve(import.meta.dirname, "..");
 const PRODUCT = "Tab Shelf";
+const LEGAL_FILES = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"];
 const IDS = Object.freeze({
   appTarget: "AA0000000000000000000001",
   extensionTarget: "AA0000000000000000000002",
@@ -32,6 +33,12 @@ const IDS = Object.freeze({
   appRelease: "CC0000000000000000000002",
   extensionDebug: "CC0000000000000000000003",
   extensionRelease: "CC0000000000000000000004",
+  appResourcesPhase: "DD0000000000000000000001",
+  appGroup: "DD0000000000000000000002",
+  appResourcesGroup: "DD0000000000000000000003",
+  legalFileReference: "4A4F5641494C4547414C0001",
+  legalBuildFile: "4A4F5641494C4547414C0002",
+  unrelatedGroup: "DD0000000000000000000004",
 });
 const SAFE_HANDLER = readFileSync(
   join(
@@ -140,15 +147,35 @@ function generatedProject(overrides = {}) {
       ${IDS.appTarget} /* Tab Shelf */ = {
         isa = PBXNativeTarget;
         buildConfigurationList = ${IDS.appList} /* Build configuration list */;
+        buildPhases = (${IDS.appResourcesPhase});
         name = "Tab Shelf";
         productType = "com.apple.product-type.application";
       };
       ${IDS.extensionTarget} /* Tab Shelf Extension */ = {
         isa = PBXNativeTarget;
         buildConfigurationList = ${IDS.extensionList} /* Build configuration list */;
+        buildPhases = (${(overrides.extensionBuildPhases ?? []).join(", ")});
         name = "Tab Shelf Extension";
         productType = "com.apple.product-type.app-extension";
       };
+      ${IDS.appGroup} /* Tab Shelf */ = {
+        isa = PBXGroup;
+        children = (${IDS.appResourcesGroup});
+        path = "Tab Shelf";
+        sourceTree = "<group>";
+      };
+      ${IDS.appResourcesGroup} /* Resources */ = {
+        isa = PBXGroup;
+        children = (${IDS.legalFileReference});
+        path = Resources;
+        sourceTree = "<group>";
+      };
+      ${IDS.appResourcesPhase} /* Resources */ = {
+        isa = PBXResourcesBuildPhase;
+        files = (${IDS.legalBuildFile});
+      };
+      ${IDS.legalFileReference} /* Legal */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Legal; sourceTree = "<group>"; };
+      ${IDS.legalBuildFile} /* Legal in Resources */ = {isa = PBXBuildFile; fileRef = ${IDS.legalFileReference}; };
       ${IDS.appList} = {
         isa = XCConfigurationList;
         buildConfigurations = (${IDS.appDebug}, ${IDS.appRelease});
@@ -203,6 +230,12 @@ function addGeneratedFixture(root, projectSource = generatedProject()) {
     join(root, "native/host/ViewController.swift"),
     join(container, PRODUCT, "ViewController.swift"),
   );
+  for (const legalFile of LEGAL_FILES) {
+    cpSync(
+      join(root, legalFile),
+      join(container, PRODUCT, "Resources/Legal", legalFile),
+    );
+  }
   cpSync(join(root, "extension"), join(container, `${PRODUCT} Extension/Resources`), {
     recursive: true,
   });
@@ -672,6 +705,143 @@ test("generated readiness validates exact target configurations", (t) => {
     extensionBundleIdentifier: "com.jovaii.tabshelf.extension",
     configurations: 4,
     networkEntitlement: "off",
+  });
+});
+
+test("generated readiness enforces the exact embedded Legal resource contract", async (t) => {
+  await t.test("missing legal file", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    rmSync(join(generatedRoot, PRODUCT, PRODUCT, "Resources/Legal/NOTICE"));
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_resource_tree_invalid reason=missing count=1/u,
+    );
+  });
+
+  await t.test("stale legal file", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    writeFileSync(
+      join(generatedRoot, PRODUCT, PRODUCT, "Resources/Legal/NOTICE"),
+      "stale legal fixture\n",
+    );
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_resource_tree_invalid reason=changed count=1/u,
+    );
+  });
+
+  await t.test("unexpected legal file", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    write(
+      join(generatedRoot, PRODUCT, PRODUCT, "Resources/Legal/EXTRA"),
+      "unexpected legal fixture\n",
+    );
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_resource_tree_invalid reason=unexpected count=1/u,
+    );
+  });
+
+  await t.test("legal file symlink", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    const notice = join(generatedRoot, PRODUCT, PRODUCT, "Resources/Legal/NOTICE");
+    unlinkSync(notice);
+    symlinkSync(join(root, "NOTICE"), notice);
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_resource_tree_invalid reason=symlink count=1/u,
+    );
+  });
+
+  await t.test("legal file hard-link alias", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    const license = join(generatedRoot, PRODUCT, PRODUCT, "Resources/Legal/LICENSE");
+    const notice = join(generatedRoot, PRODUCT, PRODUCT, "Resources/Legal/NOTICE");
+    unlinkSync(notice);
+    linkSync(license, notice);
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_resource_tree_invalid reason=alias count=2/u,
+    );
+  });
+
+  await t.test("legal folder absent from App Resources build phase", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    replace(
+      join(generatedRoot, PRODUCT, `${PRODUCT}.xcodeproj/project.pbxproj`),
+      `files = (${IDS.legalBuildFile});`,
+      "files = ();",
+    );
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_project_invalid/u,
+    );
+  });
+
+  await t.test("duplicate App Resources phase membership", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    replace(
+      join(generatedRoot, PRODUCT, `${PRODUCT}.xcodeproj/project.pbxproj`),
+      `buildPhases = (${IDS.appResourcesPhase});`,
+      `buildPhases = (${IDS.appResourcesPhase}, ${IDS.appResourcesPhase});`,
+    );
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_project_invalid/u,
+    );
+  });
+
+  await t.test("App Resources phase shared with the extension target", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(
+      root,
+      generatedProject({ extensionBuildPhases: [IDS.appResourcesPhase] }),
+    );
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_project_invalid/u,
+    );
+  });
+
+  await t.test("duplicate App Resources group membership", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(root);
+    replace(
+      join(generatedRoot, PRODUCT, `${PRODUCT}.xcodeproj/project.pbxproj`),
+      `children = (${IDS.appResourcesGroup});`,
+      `children = (${IDS.appResourcesGroup}, ${IDS.appResourcesGroup});`,
+    );
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_project_invalid/u,
+    );
+  });
+
+  await t.test("App Resources group shared with another PBX group", (t) => {
+    const root = makeSourceFixture(t);
+    const generatedRoot = addGeneratedFixture(
+      root,
+      generatedProject({
+        extraObjects: `
+      ${IDS.unrelatedGroup} /* Unrelated */ = {
+        isa = PBXGroup;
+        children = (${IDS.appResourcesGroup});
+        path = Unrelated;
+        sourceTree = "<group>";
+      };`,
+      }),
+    );
+    assert.throws(
+      () => checkGeneratedReadiness({ root, generatedRoot }),
+      /generated_project_invalid/u,
+    );
   });
 });
 

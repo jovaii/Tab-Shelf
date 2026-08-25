@@ -3,6 +3,7 @@ import fs from "node:fs";
 import {
   chmodSync,
   cpSync,
+  existsSync,
   linkSync,
   lstatSync,
   mkdirSync,
@@ -33,6 +34,12 @@ const HOST_OUTPUTS = [
   "Resources/Style.css",
   "Resources/Script.js",
 ];
+const LEGAL_FILES = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"];
+const PINNED_GENERATED_CONTAINER = join(
+  SOURCE_ROOT,
+  "native/generated",
+  PRODUCT,
+);
 
 const IDS = Object.freeze({
   appTarget: "AA0000000000000000000001",
@@ -45,6 +52,14 @@ const IDS = Object.freeze({
   extensionRelease: "BB0000000000000000000004",
   extraTarget: "CC0000000000000000000001",
   extraList: "CC0000000000000000000002",
+  appResourcesPhase: "DD0000000000000000000001",
+  appGroup: "DD0000000000000000000002",
+  appResourcesGroup: "DD0000000000000000000003",
+  legalFileReference: "4A4F5641494C4547414C0001",
+  legalBuildFile: "4A4F5641494C4547414C0002",
+  rootGroup: "DD0000000000000000000004",
+  productsGroup: "DD0000000000000000000005",
+  unrelatedGroup: "DD0000000000000000000006",
 });
 
 function settings({ type, identifier, network, extra = "", comment = "" }) {
@@ -85,11 +100,14 @@ function configurationList(id, name, references) {
   `;
 }
 
-function nativeTarget(id, name, list, productType) {
+function nativeTarget(id, name, list, productType, buildPhases = []) {
   return `
     ${id} /* ${name} */ = {
       isa = PBXNativeTarget;
       buildConfigurationList = ${list} /* Build configuration list for ${name} */;
+      buildPhases = (
+        ${buildPhases.map((reference) => `${reference},`).join("\n        ")}
+      );
       name = "${name}";
       productName = "${name}";
       productType = "${productType}";
@@ -141,9 +159,59 @@ function generatedProject(overrides = {}) {
 // !$*UTF8*$!
 {
   objects = {
-${nativeTarget(IDS.appTarget, PRODUCT, IDS.appList, "com.apple.product-type.application")}
-${nativeTarget(IDS.extensionTarget, `${PRODUCT} Extension`, IDS.extensionList, "com.apple.product-type.app-extension")}
+${nativeTarget(
+    IDS.appTarget,
+    PRODUCT,
+    IDS.appList,
+    "com.apple.product-type.application",
+    overrides.appBuildPhases ?? [`${IDS.appResourcesPhase} /* Resources */`],
+  )}
+${nativeTarget(
+    IDS.extensionTarget,
+    `${PRODUCT} Extension`,
+    IDS.extensionList,
+    "com.apple.product-type.app-extension",
+    overrides.extensionBuildPhases ?? [],
+  )}
 ${extraTarget}
+    ${IDS.rootGroup} = {
+      isa = PBXGroup;
+      children = (
+        ${IDS.appGroup} /* ${PRODUCT} */,
+        ${IDS.productsGroup} /* Products */,
+      );
+      sourceTree = "<group>";
+    };
+    ${IDS.productsGroup} /* Products */ = {
+      isa = PBXGroup;
+      children = (
+      );
+      name = Products;
+      sourceTree = "<group>";
+    };
+    ${IDS.appGroup} /* ${PRODUCT} */ = {
+      isa = PBXGroup;
+      children = (
+        ${(overrides.appGroupChildren ?? [`${IDS.appResourcesGroup} /* Resources */`]).map((reference) => `${reference},`).join("\n        ")}
+      );
+      path = "${PRODUCT}";
+      sourceTree = "<group>";
+    };
+    ${IDS.appResourcesGroup} /* Resources */ = {
+      isa = PBXGroup;
+      children = (
+      );
+      path = Resources;
+      sourceTree = "<group>";
+    };
+    ${IDS.appResourcesPhase} /* Resources */ = {
+      isa = PBXResourcesBuildPhase;
+      buildActionMask = 2147483647;
+      files = (
+      );
+      runOnlyForDeploymentPostprocessing = 0;
+    };
+${overrides.extraGroups ?? ""}
 ${configurationList(IDS.appList, "App configurations", appReferences)}
 ${configurationList(IDS.extensionList, "Extension configurations", extensionReferences)}
 ${configuration(IDS.appDebug, "Debug", settings(appDebug))}
@@ -178,6 +246,9 @@ function makeFixture(t, { projectSource = generatedProject(), duplicateProject =
     join(root, "native/release"),
     { recursive: true },
   );
+  for (const legalFile of LEGAL_FILES) {
+    cpSync(join(SOURCE_ROOT, legalFile), join(root, legalFile));
+  }
   write(join(project, "project.pbxproj"), projectSource);
   write(
     join(appTarget, "ViewController.swift"),
@@ -239,7 +310,7 @@ test("replaceExact rejects a count mismatch with a specific error", () => {
   );
 });
 
-test("prepares one generated Xcode project from tracked release values and host templates", (t) => {
+test("prepares a real-shape Xcode project with pathless root and name-only Products groups", (t) => {
   const fixture = makeFixture(t);
 
   const result = prepareMacOSProject({
@@ -258,6 +329,29 @@ test("prepares one generated Xcode project from tracked release values and host 
   assert.equal(count(preparedProject, "MARKETING_VERSION = 1.0.0;"), 4);
   assert.equal(count(preparedProject, "CURRENT_PROJECT_VERSION = 1;"), 4);
   assert.equal(count(preparedProject, "Copyright 2026 James Li / Jovaii"), 4);
+
+  for (const legalFile of LEGAL_FILES) {
+    assert.deepEqual(
+      readFileSync(join(fixture.appTarget, "Resources/Legal", legalFile)),
+      readFileSync(join(fixture.root, legalFile)),
+    );
+  }
+  assert.equal(
+    count(preparedProject, `${IDS.legalFileReference} /* Legal */`),
+    3,
+  );
+  assert.equal(
+    count(preparedProject, `${IDS.legalBuildFile} /* Legal in Resources */`),
+    2,
+  );
+  assert.match(
+    preparedProject,
+    new RegExp(`${IDS.legalFileReference} \/\\* Legal \\*\/ = \\{isa = PBXFileReference; lastKnownFileType = folder; path = Legal; sourceTree = "<group>"; \\};`, "u"),
+  );
+  assert.match(
+    preparedProject,
+    new RegExp(`${IDS.legalBuildFile} \/\\* Legal in Resources \\*\/ = \\{isa = PBXBuildFile; fileRef = ${IDS.legalFileReference} \/\\* Legal \\*\/; \\};`, "u"),
+  );
 
   assert.equal(
     readFileSync(join(fixture.appTarget, "ViewController.swift"), "utf8"),
@@ -295,6 +389,130 @@ test("prepares one generated Xcode project from tracked release values and host 
     extensionTarget: realpathSync(fixture.extensionTarget),
   });
 });
+
+test(
+  "prepares a temp copy of the actual pinned native/generated Xcode 26.6 project end to end",
+  { skip: !existsSync(PINNED_GENERATED_CONTAINER) },
+  (t) => {
+    const root = mkdtempSync(join(tmpdir(), "tab-shelf-pinned-prepare-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    cpSync(join(SOURCE_ROOT, "native/host"), join(root, "native/host"), {
+      recursive: true,
+    });
+    cpSync(join(SOURCE_ROOT, "native/release"), join(root, "native/release"), {
+      recursive: true,
+    });
+    for (const legalFile of LEGAL_FILES) {
+      cpSync(join(SOURCE_ROOT, legalFile), join(root, legalFile));
+    }
+
+    const generatedContainer = join(root, "native/generated", PRODUCT);
+    cpSync(PINNED_GENERATED_CONTAINER, generatedContainer, { recursive: true });
+    const appTarget = join(generatedContainer, PRODUCT);
+    const legalDirectory = join(appTarget, "Resources/Legal");
+    rmSync(legalDirectory, { recursive: true, force: true });
+
+    const projectSettings = join(
+      generatedContainer,
+      `${PRODUCT}.xcodeproj/project.pbxproj`,
+    );
+    let projectSource = readFileSync(projectSettings, "utf8");
+    assert.match(projectSource, /objectVersion = 77;/u);
+    assert.match(projectSource, /LastSwiftUpdateCheck = 2660;/u);
+    assert.match(projectSource, /LastUpgradeCheck = 2660;/u);
+    projectSource = replaceExact(
+      projectSource,
+      `\t\t${IDS.legalBuildFile} /* Legal in Resources */ = {isa = PBXBuildFile; fileRef = ${IDS.legalFileReference} /* Legal */; };\n`,
+      "",
+      1,
+      "pinned Legal build object",
+    );
+    projectSource = replaceExact(
+      projectSource,
+      `\t\t${IDS.legalFileReference} /* Legal */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Legal; sourceTree = "<group>"; };\n`,
+      "",
+      1,
+      "pinned Legal file object",
+    );
+    projectSource = replaceExact(
+      projectSource,
+      `\n\t\t\t\t${IDS.legalFileReference} /* Legal */,`,
+      "",
+      1,
+      "pinned Legal group membership",
+    );
+    projectSource = replaceExact(
+      projectSource,
+      `\n\t\t\t\t${IDS.legalBuildFile} /* Legal in Resources */,`,
+      "",
+      1,
+      "pinned Legal build membership",
+    );
+    projectSource = replaceExact(
+      projectSource,
+      "PRODUCT_BUNDLE_IDENTIFIER = com.jovaii.tabshelf;",
+      'PRODUCT_BUNDLE_IDENTIFIER = "com.jovaii.Tab-Shelf";',
+      2,
+      "pinned App identifiers",
+    );
+    projectSource = replaceExact(
+      projectSource,
+      "PRODUCT_BUNDLE_IDENTIFIER = com.jovaii.tabshelf.extension;",
+      "PRODUCT_BUNDLE_IDENTIFIER = com.jovaii.tabshelf.Extension;",
+      2,
+      "pinned extension identifiers",
+    );
+    projectSource = replaceExact(
+      projectSource,
+      "ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;",
+      "ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;",
+      2,
+      "pinned network settings",
+    );
+    projectSource = replaceExact(
+      projectSource,
+      'INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright 2026 James Li / Jovaii";',
+      'INFOPLIST_KEY_NSHumanReadableCopyright = "";',
+      4,
+      "pinned copyrights",
+    );
+    projectSource = replaceExact(
+      projectSource,
+      "MARKETING_VERSION = 1.0.0;",
+      "MARKETING_VERSION = 1.0;",
+      4,
+      "pinned marketing versions",
+    );
+    writeFileSync(projectSettings, projectSource);
+
+    const controller = join(appTarget, "ViewController.swift");
+    writeFileSync(
+      controller,
+      replaceExact(
+        readFileSync(controller, "utf8"),
+        'let extensionBundleIdentifier = "com.jovaii.tabshelf.extension"',
+        'let extensionBundleIdentifier = "com.jovaii.tabshelf.Extension"',
+        1,
+        "pinned generated controller identifier",
+      ),
+    );
+
+    prepareMacOSProject({
+      root,
+      generatedRoot: join(root, "native/generated"),
+    });
+
+    const preparedProject = readFileSync(projectSettings, "utf8");
+    assert.equal(count(preparedProject, `${IDS.legalFileReference} /* Legal */`), 3);
+    assert.equal(count(preparedProject, `${IDS.legalBuildFile} /* Legal in Resources */`), 2);
+    for (const legalFile of LEGAL_FILES) {
+      assert.deepEqual(
+        readFileSync(join(legalDirectory, legalFile)),
+        readFileSync(join(root, legalFile)),
+      );
+    }
+  },
+);
 
 test("normalizes generated source files and directories to release modes", (t) => {
   const fixture = makeFixture(t);
@@ -412,6 +630,84 @@ test("fails on a duplicate native App target without partial writes", (t) => {
     /native (?:App )?targets/u,
   );
   assertSnapshot(before);
+});
+
+test("rejects duplicate and wrong-target App Resources phase membership", async (t) => {
+  await t.test("duplicate phase ID in the App target", (t) => {
+    const fixture = makeFixture(t, {
+      projectSource: generatedProject({
+        appBuildPhases: [
+          `${IDS.appResourcesPhase} /* Resources */`,
+          `${IDS.appResourcesPhase} /* Resources */`,
+        ],
+      }),
+    });
+    const before = snapshotOutputs(fixture);
+
+    assert.throws(
+      () => prepareMacOSProject({ root: fixture.root, generatedRoot: fixture.generatedRoot }),
+      /resource build phase membership/u,
+    );
+    assertSnapshot(before);
+  });
+
+  await t.test("phase ID shared with the extension target", (t) => {
+    const fixture = makeFixture(t, {
+      projectSource: generatedProject({
+        extensionBuildPhases: [`${IDS.appResourcesPhase} /* Resources */`],
+      }),
+    });
+    const before = snapshotOutputs(fixture);
+
+    assert.throws(
+      () => prepareMacOSProject({ root: fixture.root, generatedRoot: fixture.generatedRoot }),
+      /resource build phase ownership/u,
+    );
+    assertSnapshot(before);
+  });
+});
+
+test("rejects duplicate and wrong-group App Resources group membership", async (t) => {
+  await t.test("duplicate Resources group ID in the App group", (t) => {
+    const fixture = makeFixture(t, {
+      projectSource: generatedProject({
+        appGroupChildren: [
+          `${IDS.appResourcesGroup} /* Resources */`,
+          `${IDS.appResourcesGroup} /* Resources */`,
+        ],
+      }),
+    });
+    const before = snapshotOutputs(fixture);
+
+    assert.throws(
+      () => prepareMacOSProject({ root: fixture.root, generatedRoot: fixture.generatedRoot }),
+      /Resources group membership/u,
+    );
+    assertSnapshot(before);
+  });
+
+  await t.test("Resources group ID shared with another PBX group", (t) => {
+    const fixture = makeFixture(t, {
+      projectSource: generatedProject({
+        extraGroups: `
+    ${IDS.unrelatedGroup} /* Unrelated */ = {
+      isa = PBXGroup;
+      children = (
+        ${IDS.appResourcesGroup} /* Resources */,
+      );
+      path = Unrelated;
+      sourceTree = "<group>";
+    };`,
+      }),
+    });
+    const before = snapshotOutputs(fixture);
+
+    assert.throws(
+      () => prepareMacOSProject({ root: fixture.root, generatedRoot: fixture.generatedRoot }),
+      /Resources group ownership/u,
+    );
+    assertSnapshot(before);
+  });
 });
 
 test("rejects settings assigned to the wrong native targets", (t) => {
@@ -639,6 +935,129 @@ test("rolls back every output when a later staged commit fails", (t) => {
   );
   assert.equal(injected, true);
   assertSnapshot(before);
+  assert.deepEqual(transactionArtifacts(fixture.generatedRoot), []);
+});
+
+test("keeps every canonical output prepared when backup cleanup fails after commit", (t) => {
+  const fixture = makeFixture(t);
+  const projectSettings = join(fixture.project, "project.pbxproj");
+  const appDelegate = join(fixture.appTarget, "AppDelegate.swift");
+  chmodSync(appDelegate, 0o755);
+  const originalUnlink = fs.unlinkSync;
+  let injected = false;
+
+  t.mock.method(fs, "unlinkSync", function unlinkWithBackupFailure(path) {
+    if (!injected && path.includes(".tab-shelf-backup-")) {
+      injected = true;
+      const error = new Error("injected backup cleanup failure");
+      error.code = "EIO";
+      throw error;
+    }
+    return originalUnlink.call(fs, path);
+  });
+
+  assert.throws(
+    () => prepareMacOSProject({ root: fixture.root, generatedRoot: fixture.generatedRoot }),
+    /transaction committed but backup cleanup failed: injected backup cleanup failure/u,
+  );
+  assert.equal(injected, true);
+  const preparedProject = readFileSync(projectSettings, "utf8");
+  assert.equal(count(preparedProject, `${IDS.legalFileReference} /* Legal */`), 3);
+  assert.equal(count(preparedProject, `${IDS.legalBuildFile} /* Legal in Resources */`), 2);
+  for (const legalFile of LEGAL_FILES) {
+    assert.deepEqual(
+      readFileSync(join(fixture.appTarget, "Resources/Legal", legalFile)),
+      readFileSync(join(fixture.root, legalFile)),
+    );
+  }
+  assert.equal(
+    readFileSync(appDelegate, "utf8"),
+    readFileSync(
+      join(fixture.root, "native/release/xcode-26.6/Tab Shelf/Tab Shelf/AppDelegate.swift"),
+      "utf8",
+    ),
+  );
+  assert.equal(lstatSync(appDelegate).mode & 0o777, 0o644);
+});
+
+test("keeps canonical outputs fully rolled back when Legal rollback cleanup fails", (t) => {
+  const fixture = makeFixture(t);
+  const appDelegate = join(fixture.appTarget, "AppDelegate.swift");
+  chmodSync(appDelegate, 0o755);
+  const before = snapshotOutputs(fixture);
+  const failedDestination = realpathSync(join(fixture.appTarget, "Resources/Style.css"));
+  const originalRename = fs.renameSync;
+  const originalUnlink = fs.unlinkSync;
+  let commitFailureInjected = false;
+  let legalRollbackFailureInjected = false;
+
+  t.mock.method(fs, "renameSync", function renameWithCommitFailure(source, destination) {
+    if (
+      !commitFailureInjected &&
+      destination === failedDestination &&
+      source.includes(".tab-shelf-stage-")
+    ) {
+      commitFailureInjected = true;
+      const error = new Error("injected pre-commit transaction failure");
+      error.code = "EIO";
+      throw error;
+    }
+    return originalRename.call(fs, source, destination);
+  });
+  t.mock.method(fs, "unlinkSync", function unlinkWithLegalRollbackFailure(path) {
+    if (
+      commitFailureInjected &&
+      !legalRollbackFailureInjected &&
+      path.endsWith("/Legal/LICENSE")
+    ) {
+      legalRollbackFailureInjected = true;
+      const error = new Error("injected Legal rollback cleanup failure");
+      error.code = "EIO";
+      throw error;
+    }
+    return originalUnlink.call(fs, path);
+  });
+
+  assert.throws(
+    () => prepareMacOSProject({ root: fixture.root, generatedRoot: fixture.generatedRoot }),
+    /transaction failed: injected pre-commit transaction failure; rollback failed: injected Legal rollback cleanup failure/u,
+  );
+  assert.equal(commitFailureInjected, true);
+  assert.equal(legalRollbackFailureInjected, true);
+  assertSnapshot(before);
+  assert.equal(lstatSync(appDelegate).mode & 0o777, 0o755);
+  assert.throws(
+    () => lstatSync(join(fixture.appTarget, "Resources/Legal")),
+    { code: "ENOENT" },
+  );
+});
+
+test("removes its new Legal directory when a later Legal file sync fails", (t) => {
+  const fixture = makeFixture(t);
+  const before = snapshotOutputs(fixture);
+  const originalFsync = fs.fsyncSync;
+  let calls = 0;
+
+  t.mock.method(fs, "fsyncSync", function fsyncWithFailure(descriptor) {
+    calls += 1;
+    if (calls === 2) {
+      const error = new Error("injected Legal file sync failure");
+      error.code = "EIO";
+      throw error;
+    }
+    return originalFsync.call(fs, descriptor);
+  });
+
+  assert.throws(
+    () => prepareMacOSProject({ root: fixture.root, generatedRoot: fixture.generatedRoot }),
+    /injected Legal file sync failure/u,
+  );
+  assert.equal(calls, 2);
+  assertSnapshot(before);
+  assert.throws(
+    () => lstatSync(join(fixture.appTarget, "Resources/Legal")),
+    { code: "ENOENT" },
+  );
   assert.deepEqual(transactionArtifacts(fixture.generatedRoot), []);
 });
 

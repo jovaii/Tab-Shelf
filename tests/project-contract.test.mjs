@@ -185,16 +185,21 @@ test("provides privacy-safe structured GitHub issue forms", () => {
 test("records the 1.0.0 release and current acceptance boundary", () => {
   const changelog = readFileSync("CHANGELOG.md", "utf8");
   const acceptance = readFileSync("docs/testing/release-acceptance.md", "utf8");
+  const progress = readFileSync("PROGRESS.md", "utf8");
 
   assert.match(changelog, /^## \[1\.0\.0\] - 2026-08-24$/m);
   assert.match(acceptance, /^# Tab Shelf 1\.0\.0 Release Acceptance$/m);
-  assert.match(acceptance, /86\/86 automated tests passed/);
+  assert.match(acceptance, /275\/275 automated tests passed/);
   assert.match(acceptance, /Full Xcode is required/);
   assert.match(acceptance, /Xcode 26\.6/);
   assert.match(acceptance, /com\.jovaii\.tabshelf\.extension/);
   assert.match(acceptance, /ad-hoc/);
   assert.match(acceptance, /\/Applications\/Tab Shelf\.app/);
   assert.match(acceptance, /Temporary Safari profile acceptance remains manual/);
+  assert.match(acceptance, /exactly one registered Tab Shelf extension/u);
+  assert.match(progress, /`QA-IN-PROGRESS`/u);
+  assert.match(progress, /GitHub remote mutation is deferred/u);
+  assert.match(progress, /Apple Distribution archive/u);
 });
 
 test("exposes dependency-free repeatable development commands", () => {

@@ -108,12 +108,6 @@ BUILT_APP="$(single_built_app)"
 "/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister" -u "$BUILT_APP"
 /usr/bin/ditto "$BUILT_APP" "$OUTPUT_APP"
 
-LEGAL_DIRECTORY="$OUTPUT_APP/Contents/Resources/Legal"
-mkdir -p "$LEGAL_DIRECTORY"
-/usr/bin/ditto "LICENSE" "$LEGAL_DIRECTORY/LICENSE"
-/usr/bin/ditto "NOTICE" "$LEGAL_DIRECTORY/NOTICE"
-/usr/bin/ditto "THIRD_PARTY_NOTICES.md" "$LEGAL_DIRECTORY/THIRD_PARTY_NOTICES.md"
-
 NESTED_EXTENSION="$(single_extension "$OUTPUT_APP")"
 [ "$(bundle_identifier "$OUTPUT_APP")" = "$OUTER_IDENTIFIER" ] \
   || fail "The generated App bundle identifier is not $OUTER_IDENTIFIER."

@@ -43,6 +43,25 @@ archive_require_safe_file() {
   [ "$link_count" -eq 1 ] || archive_workflow_fail "A required file must not be a hard link."
 }
 
+archive_require_exact_legal_resources() {
+  local archived_app="$1" legal_directory candidate source
+  local -a entries=()
+  legal_directory="$archived_app/Contents/Resources/Legal"
+  archive_require_safe_directory "$legal_directory"
+  shopt -s nullglob dotglob
+  entries=("$legal_directory"/*)
+  shopt -u nullglob dotglob
+  [ "${#entries[@]}" -eq 3 ] \
+    || archive_workflow_fail "Archive Legal resource verification failed."
+  for candidate in LICENSE NOTICE THIRD_PARTY_NOTICES.md; do
+    source="$ARCHIVE_PROJECT_ROOT/$candidate"
+    archive_require_safe_file "$source"
+    archive_require_safe_file "$legal_directory/$candidate"
+    "$ARCHIVE_TOOL_CMP" -s "$source" "$legal_directory/$candidate" \
+      || archive_workflow_fail "Archive Legal resource verification failed."
+  done
+}
+
 archive_directory_identity() {
   local candidate="$1" identity
   archive_require_safe_directory "$candidate"
@@ -134,7 +153,7 @@ archive_acquire_lock() {
 }
 
 archive_app_store_workflow() {
-  [ "$#" -eq 14 ] || archive_workflow_fail "Archive workflow configuration is invalid."
+  [ "$#" -eq 15 ] || archive_workflow_fail "Archive workflow configuration is invalid."
   ARCHIVE_PROJECT_ROOT="$1"
   unset archive_team_id
   local archive_team_id="$2"
@@ -151,6 +170,7 @@ archive_app_store_workflow() {
   ARCHIVE_TOOL_MKDIR="${12}"
   ARCHIVE_TOOL_RMDIR="${13}"
   ARCHIVE_TOOL_DIRNAME="${14}"
+  ARCHIVE_TOOL_CMP="${15}"
   ARCHIVE_GENERATED_ROOT="$ARCHIVE_PROJECT_ROOT/native/generated"
   ARCHIVE_BUILD_ROOT="$ARCHIVE_PROJECT_ROOT/build"
   ARCHIVE_ROOT="$ARCHIVE_BUILD_ROOT/app-store"
@@ -227,6 +247,7 @@ archive_app_store_workflow() {
   archive_require_plist_value "$archived_app/Contents/Info.plist" "CFBundleIdentifier" "com.jovaii.tabshelf"
   archive_require_plist_value "$archived_app/Contents/Info.plist" "CFBundleShortVersionString" "1.0.0"
   archive_require_plist_value "$archived_app/Contents/Info.plist" "CFBundleVersion" "1"
+  archive_require_exact_legal_resources "$archived_app"
   archive_require_plist_value "$archived_extension/Contents/Info.plist" "CFBundleIdentifier" "com.jovaii.tabshelf.extension"
   archive_require_plist_value "$archived_extension/Contents/Info.plist" "CFBundleShortVersionString" "1.0.0"
   archive_require_plist_value "$archived_extension/Contents/Info.plist" "CFBundleVersion" "1"

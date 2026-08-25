@@ -46,6 +46,7 @@ test("archive path signs for the enrolled team but never uploads", () => {
   assert.match(script, /\/usr\/bin\/stat/u);
   assert.match(script, /\/usr\/bin\/find/u);
   assert.match(script, /\/usr\/bin\/awk/u);
+  assert.match(script, /\/usr\/bin\/cmp/u);
   assert.match(script, /\/usr\/libexec\/PlistBuddy/u);
   assert.match(script, /\/bin\/mkdir/u);
   assert.match(script, /\/bin\/rmdir/u);
@@ -178,6 +179,18 @@ if [ "\${TAB_SHELF_BUNDLE_MODE:-one}" != "zero-app" ]; then
   if [ -d "$app" ]; then
     mkdir -p "$app/Contents"
     printf 'CFBundleIdentifier=com.jovaii.tabshelf\\nCFBundleShortVersionString=1.0.0\\nCFBundleVersion=1\\n' > "$app/Contents/Info.plist"
+    legal="$app/Contents/Resources/Legal"
+    mkdir -p "$legal"
+    for legal_file in LICENSE NOTICE THIRD_PARTY_NOTICES.md; do
+      cp "$TAB_SHELF_TEST_ROOT/$legal_file" "$legal/$legal_file"
+    done
+    case "\${TAB_SHELF_LEGAL_MODE:-one}" in
+      missing) rm "$legal/NOTICE" ;;
+      changed) printf 'changed legal fixture\\n' > "$legal/NOTICE" ;;
+      extra) printf 'unexpected legal fixture\\n' > "$legal/EXTRA" ;;
+      symlink) rm "$legal/NOTICE"; ln -s "$TAB_SHELF_TEST_ROOT/NOTICE" "$legal/NOTICE" ;;
+      hardlink) rm "$legal/NOTICE"; ln "$legal/LICENSE" "$legal/NOTICE" ;;
+    esac
     if [ -d "$app/Contents/PlugIns/Tab Shelf Extension.appex" ]; then
       printf 'CFBundleIdentifier=com.jovaii.tabshelf.extension\\nCFBundleShortVersionString=1.0.0\\nCFBundleVersion=1\\n' > "$app/Contents/PlugIns/Tab Shelf Extension.appex/Contents/Info.plist"
     fi
@@ -202,6 +215,9 @@ function makeArchiveFixture(t) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   cpSync("scripts/archive-app-store.sh", join(root, "scripts/archive-app-store.sh"));
   cpSync("scripts/archive-app-store-workflow.sh", join(root, "scripts/archive-app-store-workflow.sh"));
+  for (const legalFile of ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]) {
+    cpSync(legalFile, join(root, legalFile));
+  }
   write(join(root, "native/generated/Tab Shelf/Tab Shelf.xcodeproj/project.pbxproj"), "prepared project\n");
   const xcodeApp = join(root, "Fake Xcode.app");
   const developerDir = join(xcodeApp, "Contents/Developer");
@@ -233,6 +249,7 @@ function workflowArguments(fixture) {
     join(fixture.bin, "mkdir"),
     "/bin/rmdir",
     "/usr/bin/dirname",
+    "/usr/bin/cmp",
   ];
 }
 
@@ -311,7 +328,26 @@ test("archive behavior creates a clean build parent and verifies one sealed bund
   assert.match(result.stdout, /Tab Shelf local archive created/u);
   assert.doesNotMatch(result.stdout + result.stderr, /ABCDEFGHIJ|TOP_SECRET_TEAM/u);
   assert.equal(readFileSync(join(fixture.archivePath, "Info.plist"), "utf8").includes("com.jovaii.tabshelf"), true);
+  for (const legalFile of ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]) {
+    assert.deepEqual(
+      readFileSync(join(
+        fixture.archivePath,
+        "Products/Applications/Tab Shelf.app/Contents/Resources/Legal",
+        legalFile,
+      )),
+      readFileSync(join(fixture.root, legalFile)),
+    );
+  }
   assert.throws(() => readFileSync(join(fixture.archiveRoot, ".tab-shelf-archive.lock"), "utf8"));
+});
+
+test("archive behavior rejects incomplete, changed, and unsafe Legal resources", (t) => {
+  for (const legalMode of ["missing", "changed", "extra", "symlink", "hardlink"]) {
+    const fixture = makeArchiveFixture(t);
+    const result = runArchive(fixture, { TAB_SHELF_LEGAL_MODE: legalMode });
+    assert.equal(result.status, 1, `${legalMode}: ${result.stderr}`);
+    assert.equal(calls(fixture).includes("xcodebuild"), true, legalMode);
+  }
 });
 
 test("public archive entrypoint accepts a relative invocation before validating Team ID", (t) => {

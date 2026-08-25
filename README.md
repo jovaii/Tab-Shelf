@@ -12,7 +12,15 @@ It is designed for people who want a quieter way to review many Safari tabs with
 
 Open a new Safari tab to see one consistent card per domain. Each card shows its open pages, a locally derived accent, and direct controls to activate or close tabs. The toolbar popover provides the current web-tab count and a quick route to the shelf and Theme Studio.
 
-Real product screenshots are prepared from the verified Safari build before each public release. No placeholder store artwork or private browsing data is used here.
+![Tab Shelf domain cards with varied local accents](docs/assets/tab-shelf-hero.png)
+
+Theme Studio exposes five authored starting points and local appearance controls. The native macOS host explains whether Safari has enabled the extension without sending account or browsing data anywhere.
+
+| Theme Studio | Native host states |
+| --- | --- |
+| ![Tab Shelf Theme Studio with five presets](docs/assets/tab-shelf-themes.png) | ![Tab Shelf native host enabled state and labelled disabled-state preview](docs/assets/native-host.png) |
+
+These images use representative synthetic tabs and the locally built Tab Shelf UI. They contain no placeholder store artwork, stock media, watermark, or private browsing data.
 
 ## Choose your install path
 
@@ -132,6 +140,7 @@ The App bundle includes [LICENSE](LICENSE), [NOTICE](NOTICE), and [THIRD_PARTY_N
 - `scripts/` — audits, local preview, WebKit rendering, artwork, packaging, and installation.
 - `tests/` — dependency-free Node tests and synthetic fixtures.
 - `docs/testing/` — current Safari and release acceptance records.
+- `docs/assets/` — privacy-safe original product visuals and social-preview artwork.
 
 ### Limitations
 
