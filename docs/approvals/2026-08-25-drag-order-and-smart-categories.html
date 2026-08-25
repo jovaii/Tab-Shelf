@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#082530">
+    <title>Tab Shelf — Drag Ordering and Smart Categories Review</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --approval-ocean: #082530;
+        --approval-ocean-deep: #061a22;
+        --approval-surface: #0d2d37;
+        --approval-surface-raised: #123943;
+        --approval-text: #f4f6f3;
+        --approval-text-soft: #b7c7c8;
+        --approval-line: #42606a;
+        --approval-mint: #69d0bd;
+        --approval-mint-soft: #b9eee4;
+        --approval-gold: #d7ab38;
+        --approval-coral: #ed806e;
+        --approval-shadow: rgb(0 0 0 / 24%);
+        --approval-display: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
+        --approval-body: "Avenir Next", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        min-block-size: 100%;
+        background: var(--approval-ocean-deep);
+        font-family: var(--approval-body);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      body {
+        min-block-size: 100vh;
+        margin: 0;
+        color: var(--approval-text);
+        background:
+          radial-gradient(circle at 82% 8%, rgb(105 208 189 / 14%), transparent 31rem),
+          linear-gradient(145deg, var(--approval-ocean) 0%, var(--approval-ocean-deep) 72%);
+      }
+
+      button,
+      a {
+        font: inherit;
+      }
+
+      button:focus-visible,
+      a:focus-visible {
+        outline: 3px solid var(--approval-mint);
+        outline-offset: 4px;
+      }
+
+      .review-shell {
+        inline-size: min(100%, 92rem);
+        margin-inline: auto;
+        padding: clamp(1.25rem, 4vw, 4rem);
+      }
+
+      .review-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: end;
+        gap: 1.5rem;
+        padding-block-end: 1.5rem;
+        border-block-end: 1px solid var(--approval-line);
+      }
+
+      .review-kicker,
+      .slide-kicker,
+      .branch-label,
+      .decision-label {
+        margin: 0;
+        color: var(--approval-mint-soft);
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        line-height: 1.4;
+        text-transform: uppercase;
+      }
+
+      .review-title {
+        max-inline-size: 18ch;
+        margin: 0.55rem 0 0;
+        font-family: var(--approval-display);
+        font-size: clamp(2rem, 5vw, 4.5rem);
+        font-weight: 500;
+        letter-spacing: -0.045em;
+        line-height: 0.98;
+        text-wrap: balance;
+      }
+
+      .review-meta {
+        margin: 0.85rem 0 0;
+        color: var(--approval-text-soft);
+        font-size: 0.875rem;
+        line-height: 1.5;
+      }
+
+      .view-switcher {
+        display: flex;
+        gap: 0.35rem;
+        padding: 0.35rem;
+        border: 1px solid var(--approval-line);
+        border-radius: 999px;
+        background: rgb(6 26 34 / 72%);
+      }
+
+      .view-switcher button {
+        min-block-size: 2.5rem;
+        padding: 0.55rem 1rem;
+        border: 0;
+        border-radius: 999px;
+        color: var(--approval-text-soft);
+        background: transparent;
+        font-size: 0.875rem;
+        font-weight: 650;
+        cursor: pointer;
+      }
+
+      .view-switcher button[aria-selected="true"] {
+        color: var(--approval-ocean-deep);
+        background: var(--approval-mint);
+      }
+
+      .review-view {
+        padding-block-start: clamp(2rem, 5vw, 4rem);
+      }
+
+      .review-view[hidden] {
+        display: none;
+      }
+
+      .map-intro {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(16rem, 0.7fr);
+        gap: clamp(1.5rem, 4vw, 4rem);
+        align-items: end;
+      }
+
+      .map-intro h2,
+      .slide-title {
+        max-inline-size: 19ch;
+        margin: 0;
+        font-family: var(--approval-display);
+        font-size: clamp(2rem, 4.5vw, 4rem);
+        font-weight: 500;
+        letter-spacing: -0.04em;
+        line-height: 1;
+        text-wrap: balance;
+      }
+
+      .map-intro p {
+        max-inline-size: 48ch;
+        margin: 0;
+        color: var(--approval-text-soft);
+        font-size: clamp(1rem, 1.5vw, 1.125rem);
+        line-height: 1.55;
+        text-wrap: pretty;
+      }
+
+      .shelf-rail {
+        display: grid;
+        grid-template-columns: minmax(4rem, 15rem) 1fr;
+        gap: 1rem;
+        margin-block: 2.25rem 1.5rem;
+      }
+
+      .shelf-rail::before,
+      .shelf-rail::after {
+        block-size: 2px;
+        content: "";
+      }
+
+      .shelf-rail::before {
+        background: var(--approval-gold);
+      }
+
+      .shelf-rail::after {
+        background: var(--approval-line);
+      }
+
+      .map-root {
+        position: relative;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 1.25rem;
+        align-items: center;
+        max-inline-size: 52rem;
+        margin-inline: auto;
+        padding: 1.25rem;
+        border: 1px solid var(--approval-mint);
+        border-radius: 1.25rem;
+        background: linear-gradient(135deg, rgb(18 57 67 / 96%), rgb(13 45 55 / 92%));
+        box-shadow: 0 1.5rem 4rem var(--approval-shadow);
+      }
+
+      .map-root::after {
+        position: absolute;
+        inset-block-end: -2.25rem;
+        inset-inline-start: 50%;
+        inline-size: 1px;
+        block-size: 2.25rem;
+        content: "";
+        background: var(--approval-line);
+      }
+
+      .root-mark {
+        display: grid;
+        place-items: center;
+        inline-size: 3.5rem;
+        block-size: 3.5rem;
+        border-radius: 50%;
+        color: var(--approval-ocean-deep);
+        background: var(--approval-mint);
+        font-family: var(--approval-display);
+        font-size: 1.65rem;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .map-root h3 {
+        margin: 0;
+        font-size: clamp(1.1rem, 2vw, 1.45rem);
+        line-height: 1.25;
+        text-wrap: balance;
+      }
+
+      .map-root p {
+        margin: 0.35rem 0 0;
+        color: var(--approval-text-soft);
+        line-height: 1.5;
+      }
+
+      .map-branches {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1rem;
+        margin-block-start: 2.25rem;
+        padding-block-start: 2.25rem;
+        border-block-start: 1px solid var(--approval-line);
+      }
+
+      .map-branch {
+        min-block-size: 13rem;
+        padding: 1.15rem;
+        border: 1px solid var(--approval-line);
+        border-radius: 1rem;
+        background: rgb(13 45 55 / 84%);
+      }
+
+      .map-branch:nth-child(2),
+      .map-branch:nth-child(5) {
+        border-block-start-color: var(--approval-gold);
+      }
+
+      .map-branch:nth-child(3),
+      .map-branch:nth-child(6) {
+        border-block-start-color: var(--approval-mint);
+      }
+
+      .map-branch h3 {
+        margin: 0.55rem 0 0;
+        font-size: 1.05rem;
+        line-height: 1.3;
+      }
+
+      .map-branch ul {
+        display: grid;
+        gap: 0.45rem;
+        margin: 0.85rem 0 0;
+        padding-inline-start: 1.1rem;
+        color: var(--approval-text-soft);
+        font-size: 0.9rem;
+        line-height: 1.45;
+      }
+
+      .map-branch li::marker {
+        color: var(--approval-mint);
+      }
+
+      .slide-frame {
+        position: relative;
+        min-block-size: min(48rem, calc(100vh - 12rem));
+        overflow: hidden;
+        padding: clamp(1.5rem, 5vw, 4.5rem);
+        border: 1px solid var(--approval-line);
+        border-radius: 1.5rem;
+        background:
+          linear-gradient(90deg, transparent 0 72%, rgb(105 208 189 / 5%) 72% 100%),
+          var(--approval-ocean-deep);
+        box-shadow: 0 2rem 5rem var(--approval-shadow);
+      }
+
+      .slide-frame::after {
+        position: absolute;
+        inset-inline-end: -7rem;
+        inset-block-end: -9rem;
+        inline-size: 25rem;
+        block-size: 25rem;
+        border: 1px solid rgb(105 208 189 / 24%);
+        border-radius: 50%;
+        content: "";
+        box-shadow:
+          0 0 0 4rem rgb(105 208 189 / 3%),
+          0 0 0 8rem rgb(105 208 189 / 2%);
+        pointer-events: none;
+      }
+
+      .slide-header {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 2rem;
+        align-items: start;
+      }
+
+      .slide-status {
+        margin: 0;
+        padding: 0.55rem 0.8rem;
+        border: 1px solid var(--approval-gold);
+        border-radius: 999px;
+        color: var(--approval-gold);
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .slide-rail {
+        display: grid;
+        grid-template-columns: minmax(4rem, 12rem) 1fr;
+        gap: 1rem;
+        margin-block: clamp(2rem, 5vw, 4.5rem) clamp(1.5rem, 4vw, 3rem);
+      }
+
+      .slide-rail span {
+        block-size: 2px;
+        background: var(--approval-line);
+      }
+
+      .slide-rail span:first-child {
+        background: var(--approval-gold);
+      }
+
+      .slide-grid {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 0.75fr);
+        gap: clamp(1.5rem, 5vw, 5rem);
+      }
+
+      .outcome-statement {
+        max-inline-size: 20ch;
+        margin: 0;
+        font-family: var(--approval-display);
+        font-size: clamp(1.75rem, 4vw, 3.5rem);
+        font-weight: 500;
+        letter-spacing: -0.035em;
+        line-height: 1.05;
+        text-wrap: balance;
+      }
+
+      .outcome-statement em {
+        color: var(--approval-mint);
+        font-style: normal;
+      }
+
+      .slide-points {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+        margin-block-start: 2rem;
+      }
+
+      .slide-point {
+        min-block-size: 8rem;
+        padding-block-start: 1rem;
+        border-block-start: 1px solid var(--approval-line);
+      }
+
+      .slide-point strong {
+        display: block;
+        font-size: 1rem;
+        line-height: 1.35;
+      }
+
+      .slide-point p {
+        margin: 0.45rem 0 0;
+        color: var(--approval-text-soft);
+        font-size: 0.875rem;
+        line-height: 1.5;
+        text-wrap: pretty;
+      }
+
+      .boundary-panel {
+        align-self: stretch;
+        padding: 1.25rem;
+        border-inline-start: 2px solid var(--approval-coral);
+        background: rgb(13 45 55 / 72%);
+      }
+
+      .boundary-panel h3 {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .boundary-panel ul {
+        display: grid;
+        gap: 0.75rem;
+        margin: 1rem 0 0;
+        padding: 0;
+        color: var(--approval-text-soft);
+        font-size: 0.9rem;
+        line-height: 1.45;
+        list-style: none;
+      }
+
+      .boundary-panel li {
+        position: relative;
+        padding-inline-start: 1.25rem;
+      }
+
+      .boundary-panel li::before {
+        position: absolute;
+        inset-inline-start: 0;
+        content: "—";
+        color: var(--approval-coral);
+      }
+
+      .slide-decision {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 2rem;
+        align-items: end;
+        margin-block-start: clamp(2rem, 5vw, 4rem);
+        padding-block-start: 1.25rem;
+        border-block-start: 1px solid var(--approval-line);
+      }
+
+      .slide-decision p {
+        max-inline-size: 58ch;
+        margin: 0.4rem 0 0;
+        color: var(--approval-text-soft);
+        line-height: 1.5;
+      }
+
+      .delivery-time {
+        margin: 0;
+        color: var(--approval-gold);
+        font-family: var(--approval-display);
+        font-size: clamp(2rem, 4vw, 3.5rem);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.035em;
+        line-height: 1;
+        white-space: nowrap;
+      }
+
+      .review-footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-block-start: 1.5rem;
+        color: var(--approval-text-soft);
+        font-size: 0.75rem;
+        line-height: 1.5;
+      }
+
+      .review-footer a {
+        color: var(--approval-mint-soft);
+        text-underline-position: from-font;
+        text-decoration-thickness: from-font;
+      }
+
+      @media (max-width: 56rem) {
+        .review-header,
+        .map-intro,
+        .slide-header,
+        .slide-grid,
+        .slide-decision {
+          grid-template-columns: 1fr;
+        }
+
+        .view-switcher {
+          inline-size: fit-content;
+        }
+
+        .map-branches {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .slide-status {
+          inline-size: fit-content;
+        }
+
+        .delivery-time {
+          white-space: normal;
+        }
+      }
+
+      @media (max-width: 38rem) {
+        .map-root,
+        .slide-points,
+        .map-branches {
+          grid-template-columns: 1fr;
+        }
+
+        .map-root::after {
+          display: none;
+        }
+
+        .map-branches {
+          border-block-start: 0;
+          padding-block-start: 0;
+        }
+
+        .slide-frame {
+          border-radius: 1rem;
+        }
+
+        .review-footer {
+          flex-direction: column;
+        }
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .review-view:not([hidden]) {
+          animation: review-reveal 180ms ease-out;
+        }
+
+        @keyframes review-reveal {
+          from {
+            opacity: 0;
+            transform: translateY(0.35rem);
+          }
+
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      }
+
+      @media print {
+        :root {
+          color-scheme: light;
+          --approval-ocean: #ffffff;
+          --approval-ocean-deep: #ffffff;
+          --approval-surface: #ffffff;
+          --approval-surface-raised: #ffffff;
+          --approval-text: #17211f;
+          --approval-text-soft: #53615d;
+          --approval-line: #bbc5c1;
+          --approval-mint: #2f6f68;
+          --approval-mint-soft: #245851;
+          --approval-gold: #8b6814;
+          --approval-coral: #9c3f32;
+          --approval-shadow: transparent;
+        }
+
+        body {
+          background: #ffffff;
+        }
+
+        .view-switcher {
+          display: none;
+        }
+
+        .review-view,
+        .review-view[hidden] {
+          display: block;
+          break-after: page;
+        }
+
+        .map-root,
+        .map-branch,
+        .boundary-panel,
+        .slide-frame {
+          background: #ffffff;
+          box-shadow: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="review-shell">
+      <header class="review-header">
+        <div>
+          <p class="review-kicker">Tab Shelf · Product decision</p>
+          <h1 class="review-title">Drag ordering &amp; smart categories</h1>
+          <p class="review-meta">Plain-language review · macOS Safari · 25 August 2026</p>
+        </div>
+        <nav class="view-switcher" aria-label="Review view">
+          <button id="mind-map-tab" type="button" role="tab" aria-selected="true" aria-controls="mind-map-view">Mind Map</button>
+          <button id="one-slide-tab" type="button" role="tab" aria-selected="false" aria-controls="one-slide-view">One Slide</button>
+        </nav>
+      </header>
+
+      <section id="mind-map-view" class="review-view" role="tabpanel" aria-labelledby="mind-map-tab">
+        <div class="map-intro">
+          <h2>Starts organized. Stays under your control.</h2>
+          <p>Tab Shelf first sorts domain cards into useful local categories. You can then drag cards and categories into the arrangement that works for you.</p>
+        </div>
+
+        <div class="shelf-rail" aria-hidden="true"></div>
+
+        <article class="map-root">
+          <span class="root-mark" aria-hidden="true">TS</span>
+          <div>
+            <h3>One calm, personal workspace for the Safari tabs open on this Mac</h3>
+            <p>The feature organizes Tab Shelf itself. Safari's native tab strip remains untouched.</p>
+          </div>
+        </article>
+
+        <div class="map-branches">
+          <article class="map-branch">
+            <p class="branch-label">Automatic start</p>
+            <h3>Useful groups appear immediately</h3>
+            <ul>
+              <li>AI &amp; Research</li>
+              <li>Work, Communication, Learning</li>
+              <li>Shopping, Media, Finance, Travel, Utilities</li>
+              <li>Unmatched sites go to Other</li>
+            </ul>
+          </article>
+
+          <article class="map-branch">
+            <p class="branch-label">Direct control</p>
+            <h3>Drag cards where they belong</h3>
+            <ul>
+              <li>Reorder inside a category</li>
+              <li>Move into another category</li>
+              <li>Drag categories into a new order</li>
+              <li>Dedicated handles prevent accidental moves</li>
+            </ul>
+          </article>
+
+          <article class="map-branch">
+            <p class="branch-label">Customize</p>
+            <h3>Create a layout that fits your work</h3>
+            <ul>
+              <li>Create and rename categories</li>
+              <li>Collapse quiet categories</li>
+              <li>Delete a custom category safely</li>
+              <li>Manual choices override automatic rules</li>
+            </ul>
+          </article>
+
+          <article class="map-branch">
+            <p class="branch-label">Remember</p>
+            <h3>Your layout returns next time</h3>
+            <ul>
+              <li>Order is saved on this Mac</li>
+              <li>Assignments survive Safari relaunch</li>
+              <li>New domains append predictably</li>
+              <li>Reset layout without resetting appearance</li>
+            </ul>
+          </article>
+
+          <article class="map-branch">
+            <p class="branch-label">Accessible</p>
+            <h3>Every drag action has a keyboard path</h3>
+            <ul>
+              <li>Move before or after</li>
+              <li>Move to any category</li>
+              <li>Focus returns after a move</li>
+              <li>Reduced motion is respected</li>
+            </ul>
+          </article>
+
+          <article class="map-branch">
+            <p class="branch-label">Private boundary</p>
+            <h3>No new access or service</h3>
+            <ul>
+              <li>Local rules only</li>
+              <li>No account, cloud, AI, or telemetry</li>
+              <li>No added Safari permission</li>
+              <li>No change to Safari tabs or Tab Groups</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section id="one-slide-view" class="review-view" role="tabpanel" aria-labelledby="one-slide-tab" hidden>
+        <article class="slide-frame">
+          <header class="slide-header">
+            <div>
+              <p class="slide-kicker">The proposed outcome</p>
+              <h2 class="slide-title">A shelf that organizes itself—then gets out of your way.</h2>
+            </div>
+            <p class="slide-status">Design review · Not shipped</p>
+          </header>
+
+          <div class="slide-rail" aria-hidden="true"><span></span><span></span></div>
+
+          <div class="slide-grid">
+            <div>
+              <p class="outcome-statement">Automatic categories give every domain a home. <em>Your drag order always wins.</em></p>
+              <div class="slide-points">
+                <article class="slide-point">
+                  <strong>Move freely</strong>
+                  <p>Reorder cards and categories with a dedicated drag handle.</p>
+                </article>
+                <article class="slide-point">
+                  <strong>Make it yours</strong>
+                  <p>Create, rename, collapse, reorder, and delete custom categories.</p>
+                </article>
+                <article class="slide-point">
+                  <strong>Keep the result</strong>
+                  <p>The chosen layout returns after new tabs and Safari relaunch.</p>
+                </article>
+                <article class="slide-point">
+                  <strong>Use any input</strong>
+                  <p>Keyboard actions provide the same organization as dragging.</p>
+                </article>
+              </div>
+            </div>
+
+            <aside class="boundary-panel" aria-label="Product boundaries">
+              <h3>What remains unchanged</h3>
+              <ul>
+                <li>Safari's native tab order</li>
+                <li>Safari Tab Groups and windows</li>
+                <li>Existing appearance settings</li>
+                <li>Current tabs and storage permissions</li>
+                <li>Local-only privacy boundary</li>
+                <li>Dependency-free product architecture</li>
+              </ul>
+            </aside>
+          </div>
+
+          <footer class="slide-decision">
+            <div>
+              <p class="decision-label">Decision requested</p>
+              <p>Approve automatic local categories, persistent drag ordering, user-created categories, and the stated privacy boundary as one implementation scope.</p>
+            </div>
+            <p class="delivery-time">4–6 hours</p>
+          </footer>
+        </article>
+      </section>
+
+      <footer class="review-footer">
+        <span>Tab Shelf by James Li · Human approval package</span>
+        <a href="../superpowers/specs/2026-08-25-drag-order-and-smart-categories-design.md">Open the complete source specification</a>
+      </footer>
+    </main>
+
+    <script>
+      const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+      const panels = Array.from(document.querySelectorAll('[role="tabpanel"]'));
+
+      function selectView(selectedTab) {
+        tabs.forEach((tab) => {
+          const selected = tab === selectedTab;
+          tab.setAttribute("aria-selected", String(selected));
+          tab.tabIndex = selected ? 0 : -1;
+        });
+
+        panels.forEach((panel) => {
+          panel.hidden = panel.getAttribute("aria-labelledby") !== selectedTab.id;
+        });
+      }
+
+      tabs.forEach((tab, index) => {
+        tab.addEventListener("click", () => selectView(tab));
+        tab.addEventListener("keydown", (event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          const direction = event.key === "ArrowRight" ? 1 : -1;
+          const nextTab = tabs[(index + direction + tabs.length) % tabs.length];
+          selectView(nextTab);
+          nextTab.focus();
+        });
+      });
+    </script>
+  </body>
+</html>

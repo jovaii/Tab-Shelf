@@ -5,6 +5,8 @@
 **Status:** Approved interaction design; written specification awaiting final user review
 **Release scope:** macOS Safari only
 
+**Plain-language review:** [Web Mind Map and One Slide](../../approvals/2026-08-25-drag-order-and-smart-categories.html)
+
 ## Summary
 
 Tab Shelf will organize its existing domain cards into compact category sections. The first layout is created automatically with deterministic local rules. Users can then create custom categories, move domain cards between categories, reorder cards, reorder categories, rename custom categories, collapse categories, and reset the workspace layout.

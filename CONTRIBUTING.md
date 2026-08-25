@@ -34,6 +34,24 @@ Safari tab and storage permissions must remain narrowly justified by user-visibl
 
 Keep public documentation in English and base claims on behavior verified in the repository. Do not invent release links, store availability, signing status, or screenshots. Interface changes should preserve keyboard access, reduced-motion behavior, readable contrast, and responsive layouts.
 
+### Human approval packages
+
+Any specification, product decision, release decision, or other document that requires explicit human approval must include all three review surfaces before approval is requested:
+
+1. the complete Markdown source of record;
+2. a responsive Web mind map that shows the decision structure and relationships; and
+3. a one-slide Web summary that states the outcome, user-visible behavior, boundaries, delivery scope, and decision being requested.
+
+Keep the public repository versions in English and link the three surfaces together. Write the Web views in plain product language, not implementation terminology. If a reviewer needs another language, generate a local review copy without replacing the English source of record. The Web views must remain dependency-free, keyboard accessible, printable, and readable without a network connection.
+
+Do not request approval from the Markdown file alone. When the approved source changes materially, update both Web views and repeat approval before implementation or release proceeds.
+
+Verify a review page in desktop and compact WebKit layouts with:
+
+```sh
+npm run render:approval -- 'http://127.0.0.1:4173/docs/approvals/<page>.html?approval=1' build/approval-review
+```
+
 ## License
 
 Tab Shelf is licensed under Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

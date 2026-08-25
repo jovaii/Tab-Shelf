@@ -17,6 +17,7 @@
     "archive:app-store": "bash scripts/archive-app-store.sh",
     "preview": "node scripts/serve-preview.mjs --host 127.0.0.1 --port 4173",
     "render:preview": "SWIFT_MODULECACHE_PATH=/private/tmp/tab-shelf-swift-cache CLANG_MODULE_CACHE_PATH=/private/tmp/tab-shelf-swift-cache swift scripts/render-preview.swift 'http://127.0.0.1:4173/shelf.html?preview=1' build/screenshots",
+    "render:approval": "SWIFT_MODULECACHE_PATH=/private/tmp/tab-shelf-swift-cache CLANG_MODULE_CACHE_PATH=/private/tmp/tab-shelf-swift-cache swift scripts/render-approval-preview.swift",
     "package:macos": "bash scripts/package-macos.sh",
     "install:macos": "bash scripts/install-macos.sh"
   }
