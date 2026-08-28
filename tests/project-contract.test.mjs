@@ -60,6 +60,8 @@ test("publishes complete English setup, theme, build, and removal guidance", () 
   assert.match(readme, /tab-shelf-preferences-v1\.json/);
   assert.match(readme, /THIRD_PARTY_NOTICES\.md/);
   assert.match(readme, /Five authored themes:[^\n]*Storm Horizon/u);
+  assert.match(readme, /build\/install-recovery\//u);
+  assert.doesNotMatch(readme, /\/Applications\/Tab Shelf\.app\.(?:backup|failed)-/u);
 });
 
 test("presents the public product decision without an invented store listing", () => {
@@ -198,6 +200,7 @@ test("provides privacy-safe structured GitHub issue forms", () => {
 test("records the 1.0.0 release and current acceptance boundary", () => {
   const changelog = readFileSync("CHANGELOG.md", "utf8");
   const acceptance = readFileSync("docs/testing/release-acceptance.md", "utf8");
+  const localAcceptance = readFileSync("docs/testing/local-safari-acceptance.md", "utf8");
   const progress = readFileSync("PROGRESS.md", "utf8");
 
   assert.match(changelog, /^## \[1\.0\.0\] - 2026-08-24$/m);
@@ -206,10 +209,15 @@ test("records the 1.0.0 release and current acceptance boundary", () => {
   assert.match(acceptance, /Full Xcode is required/);
   assert.match(acceptance, /Xcode 26\.6/);
   assert.match(acceptance, /com\.jovaii\.tabshelf\.extension/);
-  assert.match(acceptance, /ad-hoc/);
+  assert.match(acceptance, /Apple Development/);
+  assert.match(acceptance, /Personal Team/);
+  assert.doesNotMatch(acceptance, /current (?:build|App)[^.]*ad-hoc/iu);
   assert.match(acceptance, /\/Applications\/Tab Shelf\.app/);
   assert.match(acceptance, /Real Safari profile acceptance was completed and confirmed by the product owner/u);
   assert.match(acceptance, /exactly one registered Tab Shelf extension/u);
+  assert.match(localAcceptance, /Apple Development/);
+  assert.match(localAcceptance, /Personal Team/);
+  assert.match(localAcceptance, /exactly one registered Tab Shelf extension/u);
   assert.match(progress, /`DEPLOY-PREFLIGHT`/u);
   assert.match(progress, /Owner-confirmed Safari acceptance is complete/u);
   assert.match(progress, /Apple membership compliance submission was accepted/u);

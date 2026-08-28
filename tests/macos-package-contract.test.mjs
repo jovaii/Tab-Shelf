@@ -39,7 +39,7 @@ test("package validates one project, one app, final identifiers, signing, and le
   assert.match(script, /dist\/Tab-Shelf-1\.0\.0\.zip/u);
   assert.match(script, /CFBundleIdentifier/u);
   assert.match(script, /com\.jovaii\.tabshelf\.extension/u);
-  assert.match(script, /codesign --force --sign -/u);
+  assert.doesNotMatch(script, /codesign --force --sign -/u);
   assert.match(script, /codesign --verify --strict/u);
   assert.match(script, /ditto -c -k --sequesterRsrc --keepParent/u);
   for (const legalFile of ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]) {
@@ -49,24 +49,43 @@ test("package validates one project, one app, final identifiers, signing, and le
   assert.doesNotMatch(script, /LEGAL_DIRECTORY/u);
 });
 
-test("package uses Xcode Sign to Run Locally for Safari registration", () => {
+test("package uses one Apple Development team without committing personal identity", () => {
   const script = source("scripts/package-macos.sh");
 
   assert.doesNotMatch(script, /CODE_SIGNING_ALLOWED=NO/u);
   assert.match(script, /CODE_SIGNING_ALLOWED=YES/u);
-  assert.match(script, /CODE_SIGN_IDENTITY=-/u);
-  assert.doesNotMatch(script, /codesign --force --sign - "\$NESTED_EXTENSION"/u);
+  assert.match(script, /TAB_SHELF_DEVELOPMENT_TEAM/u);
+  assert.match(script, /security find-identity -v -p codesigning/u);
+  assert.match(script, /security find-certificate -c 'Apple Development'/u);
+  assert.match(script, /openssl x509 -noout -subject -nameopt RFC2253/u);
+  assert.match(script, /-allowProvisioningUpdates/u);
+  assert.match(script, /DEVELOPMENT_TEAM="\$DEVELOPMENT_TEAM"/u);
+  assert.match(script, /CODE_SIGN_STYLE=Automatic/u);
+  assert.doesNotMatch(script, /CODE_SIGN_IDENTITY=-/u);
+  assert.doesNotMatch(script, /codesign --force --sign -/u);
+  assert.doesNotMatch(script, /DEVELOPMENT_TEAM="[A-Z0-9]{10}"/u);
+  assert.doesNotMatch(script, /Apple Development:[^"\n]*@/iu);
 });
 
-test("package does not register the build-directory app with Launch Services", () => {
+test("package removes every controlled build registration before reporting success", () => {
   const script = source("scripts/package-macos.sh");
 
   assert.match(script, /REGISTER_WITH_LAUNCH_SERVICES=NO/u);
+  assert.match(script, /PLUGINKIT="\/usr\/bin\/pluginkit"/u);
+  assert.match(script, /LSREGISTER=.*LaunchServices.*lsregister/u);
+  assert.match(script, /unregister_build_app/u);
+  assert.match(script, /"\$PLUGINKIT" -r "\$extension_path"/u);
   assert.match(
     script,
-    /LaunchServices\.framework\/Versions\/Current\/Support\/lsregister" -u "\$BUILT_APP"/u,
+    /"\$LSREGISTER" -u "\$app_path"/u,
   );
-  assert.ok(script.indexOf('lsregister" -u "$BUILT_APP"') < script.indexOf('ditto "$BUILT_APP"'));
+  assert.match(script, /trap cleanup_build_registrations EXIT/u);
+  assert.match(script, /"\$PLUGINKIT" -mDvvv -i "\$EXTENSION_IDENTIFIER"/u);
+  assert.match(script, /verify_no_build_registrations/u);
+  assert.ok(
+    script.lastIndexOf("verify_no_build_registrations")
+      < script.indexOf("printf 'Tab Shelf package created:"),
+  );
 });
 
 test("package prepares the generated project before building without inline mutations", () => {
@@ -80,17 +99,26 @@ test("package prepares the generated project before building without inline muta
   assert.doesNotMatch(script, /com\.jovaii\.Tab-Shelf|com\.jovaii\.tabshelf\.Extension/u);
 });
 
-test("installer uses one exact target and a recoverable sibling backup", () => {
+test("installer keeps recovery apps outside Applications and enforces one registration", () => {
   const script = source("scripts/install-macos.sh");
 
   assert.match(script, /set -euo pipefail/u);
   assert.match(script, /SOURCE_APP=.*build\/Tab Shelf\.app/u);
   assert.match(script, /INSTALL_TARGET="\/Applications\/Tab Shelf\.app"/u);
+  assert.match(script, /RECOVERY_ROOT="\$PROJECT_ROOT\/build\/install-recovery"/u);
+  assert.match(script, /BACKUP_ROOT="\$RECOVERY_ROOT\/backups"/u);
+  assert.match(script, /FAILED_ROOT="\$RECOVERY_ROOT\/failures"/u);
+  assert.doesNotMatch(script, /\/Applications\/Tab Shelf\.app\.(?:backup|failed)-/u);
   assert.match(script, /\[ -L "\$INSTALL_TARGET" \]/u);
-  assert.match(script, /Tab Shelf\.app\.backup-/u);
-  assert.match(script, /Tab Shelf\.app\.failed-/u);
+  assert.match(script, /"\$PLUGINKIT" -r/u);
+  assert.match(script, /"\$LSREGISTER" -u/u);
+  assert.match(script, /"\$PLUGINKIT" -mDvvv -i "\$EXTENSION_IDENTIFIER"/u);
+  assert.match(script, /Expected exactly one registered Safari extension/u);
+  assert.match(script, /EXPECTED_EXTENSION_PATH/u);
   assert.match(script, /trap rollback EXIT/u);
   assert.match(script, /mv "\$BACKUP_TARGET" "\$INSTALL_TARGET"/u);
+  assert.match(script, /register_app "\$INSTALL_TARGET"/u);
+  assert.match(script, /verify_single_registration/u);
   assert.match(script, /com\.jovaii\.tabshelf/u);
   assert.match(script, /com\.jovaii\.tabshelf\.extension/u);
   assert.match(script, /codesign --verify --strict/u);

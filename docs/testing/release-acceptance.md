@@ -1,6 +1,6 @@
 # Tab Shelf 1.0.0 Release Acceptance
 
-Date: 25 August 2026
+Date: 29 August 2026
 
 Owner: James Li / Jovaii
 
@@ -23,7 +23,7 @@ The automated source, generated-project, deterministic WebKit, local package, in
 - App packaging refuses Command Line Tools-only environments before creating output.
 - Xcode 26.6 completed the final Release rebuild with the `Tab Shelf` scheme.
 - The built App uses `com.jovaii.tabshelf`; its Safari Extension uses `com.jovaii.tabshelf.extension`.
-- The App and extension passed strict ad-hoc signature verification for local use.
+- The App and extension passed strict Apple Development signature verification under the current Personal Team for local use.
 - `Tab Shelf.app` is installed and running from `/Applications/Tab Shelf.app`; key installed extension sources match the just-built App byte for byte.
 - A read-only system registration query reported exactly one registered Tab Shelf extension at version 1.0.0.
 - `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md` are present in the installed App bundle.
@@ -33,9 +33,9 @@ The automated source, generated-project, deterministic WebKit, local package, in
 
 Full Xcode is required for repeat builds because Command Line Tools do not provide Apple's `safari-web-extension-packager`. Xcode 26.6 is installed on the current Mac and produced `build/Tab Shelf.app` plus `dist/Tab-Shelf-1.0.0.zip`.
 
-The current App uses an ad-hoc local signature. It is not a Developer ID-signed or notarized distribution build and is not represented as suitable for third-party distribution.
+The current App uses an Apple Development identity from the current Personal Team. This is a persistent local testing build, not a Developer ID-signed, notarized, or Mac App Store distribution build, and it is not represented as suitable for third-party distribution. Free Personal Team provisioning requires periodic rebuilding.
 
-Real Safari profile acceptance was completed and confirmed by the product owner using the disposable-tab procedure in [local-safari-acceptance.md](local-safari-acceptance.md). The remaining distribution boundary is Apple-owned membership, signing, App Store Connect configuration, archive upload, and review.
+Real Safari profile acceptance was completed and confirmed by the product owner using the disposable-tab procedure in [local-safari-acceptance.md](local-safari-acceptance.md). The remaining distribution boundary is paid Apple Developer Program activation, Apple Distribution signing, App Store Connect configuration, archive upload, and review.
 
 ## Release blockers
 

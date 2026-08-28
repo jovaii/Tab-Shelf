@@ -24,7 +24,9 @@ Safari may clear the unsigned-extension setting after Safari fully quits.
 
 ## Resolve a duplicate extension entry
 
-If Safari shows a duplicate extension entry, disable every Tab Shelf entry first. Quit Safari and Tab Shelf, keep only the intended App in `/Applications`, and move any extra App copies to Trash. Reopen the retained App, reopen Safari, and enable one Tab Shelf entry.
+The supported installer treats duplicate registration as a hard failure. It keeps recovery Apps outside `/Applications`, unregisters controlled build copies, and accepts only one PlugInKit path: `/Applications/Tab Shelf.app/Contents/PlugIns/Tab Shelf Extension.appex`.
+
+If Safari still shows duplicate entries, disable every Tab Shelf entry first and quit Safari and Tab Shelf. Confirm that `/Applications/Tab Shelf.app` is the only Tab Shelf App under `/Applications`, then run `npm run install:macos` again from the source checkout. The installer prints every unexpected registered path and does not delete an unknown App automatically.
 
 If a temporary source copy was also added, remove or leave that copy disabled before enabling the packaged App. Do not enable two entries with the same name.
 
@@ -69,7 +71,7 @@ For the packaged App:
 2. Quit Safari and Tab Shelf.
 3. Move `/Applications/Tab Shelf.app` to Trash.
 
-Review any timestamped `.backup-…` or `.failed-…` sibling Apps separately before moving them to Trash; they may have been retained for local recovery.
+Review any source-build recovery App under `build/install-recovery/` separately before moving it to Trash. Recovery Apps are not retained beside the installed App in `/Applications`.
 
 ## Report a problem
 

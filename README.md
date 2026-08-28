@@ -81,6 +81,7 @@ The source uses no third-party runtime packages, remote fonts, stock images, or 
 - A current macOS release with Safari Web Extension support.
 - Node.js 24 or newer for the dependency-free test and audit commands.
 - Full Xcode only when generating the macOS App container.
+- An Apple Account signed in to Xcode with one valid Apple Development identity for a persistent local App build. A free Personal Team is sufficient for personal testing.
 
 No package installation step is required.
 
@@ -142,7 +143,9 @@ npm run package:macos
 npm run install:macos
 ```
 
-The local packaging workflow creates `build/Tab Shelf.app` and `dist/Tab-Shelf-1.0.0.zip`. The installer verifies the new App before changing `/Applications`. If `/Applications/Tab Shelf.app` already exists, it is moved to a timestamped sibling backup. A failed copy is retained separately and the verified backup is restored.
+The local packaging workflow creates `build/Tab Shelf.app` and `dist/Tab-Shelf-1.0.0.zip`. It automatically uses the single valid Apple Development identity available to Xcode, keeps the Xcode signature intact, and prevents the derived-data App from registering with Safari. Set `TAB_SHELF_DEVELOPMENT_TEAM` only when Xcode has more than one eligible team; the value is read at runtime and is not written into the repository.
+
+The installer verifies the new App before changing `/Applications`. Recovery copies are retained under `build/install-recovery/backups/` or `build/install-recovery/failures/`, never beside the installed App. It unregisters controlled build and recovery copies, registers only `/Applications/Tab Shelf.app`, and stops unless PlugInKit reports exactly one Tab Shelf extension at the installed path.
 
 The App bundle includes [LICENSE](LICENSE), [NOTICE](NOTICE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
@@ -158,6 +161,7 @@ The App bundle includes [LICENSE](LICENSE), [NOTICE](NOTICE), and [THIRD_PARTY_N
 
 - Official App packaging requires full Xcode; Command Line Tools alone do not include Apple's Safari conversion and build tools.
 - A temporary extension may need to be added again after Safari restarts.
+- Free Personal Team provisioning is intended for personal testing and requires periodic rebuilding. App Store distribution remains separate and requires an active Apple Developer Program membership.
 - **Save for later** is visibly disabled and reserved for a future version.
 - Real Safari close actions should be tested with disposable tabs because closed pages may contain unsaved work.
 
@@ -175,7 +179,7 @@ Start with the enablement, permissions, duplicate-entry, new-tab, theme-reset, a
 
 For a temporary extension, disable **Tab Shelf** in Safari → Settings → Extensions or fully quit Safari.
 
-For the packaged App, first disable its Safari extension, quit **Tab Shelf**, and move `/Applications/Tab Shelf.app` to Trash. Timestamped `.backup-…` and `.failed-…` siblings are intentionally retained for recovery and can be reviewed separately.
+For the packaged App, first disable its Safari extension, quit **Tab Shelf**, and move `/Applications/Tab Shelf.app` to Trash. If you built from source, review any retained recovery copy under `build/install-recovery/` separately; no recovery App should remain in `/Applications`.
 
 ## Contributing
 
