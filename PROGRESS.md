@@ -30,11 +30,11 @@ SOURCE: Commands executed on 25 August 2026 and local QA run `artifacts/qa/qa-20
 
 FACT: Xcode 26.6 build 17F113 generated and built the Release App from the tracked Xcode 26.6 profile. `npm run check:app-store` passed with network entitlement off and zero detected secrets.
 
-FACT: `build/Tab Shelf.app` and its embedded extension passed strict ad-hoc signature verification. The bundle identifiers are `com.jovaii.tabshelf` and `com.jovaii.tabshelf.extension`; `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md` are embedded.
+FACT: `build/Tab Shelf.app` and its embedded extension passed strict Apple Development signature verification under the current Personal Team. The bundle identifiers are `com.jovaii.tabshelf` and `com.jovaii.tabshelf.extension`; `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md` are embedded.
 
-FACT: Tab Shelf 1.0.0 build 1 is installed and running from `/Applications/Tab Shelf.app`. A read-only `pluginkit` query reported exactly one registered Tab Shelf extension. The previous installation is retained as a recoverable sibling backup and is not registered as a second extension.
+FACT: Tab Shelf 1.0.0 build 1 is installed and running from `/Applications/Tab Shelf.app`. An all-state `pluginkit` query reported exactly one registered Tab Shelf extension at the installed path. Build products are explicitly unregistered, and recoverable installer copies are retained only under `build/install-recovery/`, never beside the installed App in `/Applications`.
 
-SOURCE: Local package, readiness, install, codesign, plist, process, and pluginkit checks on 25 August 2026.
+SOURCE: Local package, readiness, install, codesign, plist, process, PlugInKit, and Launch Services checks on 29 August 2026.
 
 ### Product visuals
 

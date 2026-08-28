@@ -202,6 +202,10 @@ test("records the 1.0.0 release and current acceptance boundary", () => {
   const acceptance = readFileSync("docs/testing/release-acceptance.md", "utf8");
   const localAcceptance = readFileSync("docs/testing/local-safari-acceptance.md", "utf8");
   const progress = readFileSync("PROGRESS.md", "utf8");
+  const registrationDesign = readFileSync(
+    "docs/superpowers/specs/2026-08-28-single-safari-registration-design.md",
+    "utf8",
+  );
 
   assert.match(changelog, /^## \[1\.0\.0\] - 2026-08-24$/m);
   assert.match(acceptance, /^# Tab Shelf 1\.0\.0 Release Acceptance$/m);
@@ -221,9 +225,16 @@ test("records the 1.0.0 release and current acceptance boundary", () => {
   assert.match(progress, /`DEPLOY-PREFLIGHT`/u);
   assert.match(progress, /Owner-confirmed Safari acceptance is complete/u);
   assert.match(progress, /Apple membership compliance submission was accepted/u);
+  assert.match(progress, /Apple Development/u);
+  assert.match(progress, /build\/install-recovery\//u);
+  assert.match(progress, /exactly one registered Tab Shelf extension/u);
+  assert.doesNotMatch(progress, /strict ad-hoc signature|recoverable sibling backup/iu);
   assert.doesNotMatch(progress, /@|passport|national ID/iu);
   assert.match(progress, /GitHub source and metadata synchronization is complete/u);
   assert.match(progress, /Apple Distribution archive/u);
+  assert.match(registrationDesign, /build\/install-recovery\/backups\//u);
+  assert.match(registrationDesign, /build\/install-recovery\/failures\//u);
+  assert.doesNotMatch(registrationDesign, /build\/install-(?:backups|failures)\//u);
 });
 
 test("exposes dependency-free repeatable development commands", () => {

@@ -10,7 +10,7 @@ Tab Shelf will enforce a single-registration invariant across both packaging and
 
 - Xcode build products must use `REGISTER_WITH_LAUNCH_SERVICES=NO` and must be explicitly unregistered before they are copied.
 - Local packages must use the single valid Apple Development identity available on the Mac, with an optional environment override for the development team. Ad-hoc signing is not an acceptable persistent local installation.
-- Installer recovery copies must live under `build/install-backups/` or `build/install-failures/`, never beside the installed application in `/Applications`.
+- Installer recovery copies must live under `build/install-recovery/backups/` or `build/install-recovery/failures/`, never beside the installed application in `/Applications`.
 - Every moved recovery copy and every build-directory copy must be unregistered from Launch Services and PlugInKit.
 - The final installer gate must inspect all PlugInKit states and accept exactly one `com.jovaii.tabshelf.extension` path: `/Applications/Tab Shelf.app/Contents/PlugIns/Tab Shelf Extension.appex`.
 - Any unknown duplicate path stops the installation with the exact path in the error message. The installer does not delete unknown applications.
