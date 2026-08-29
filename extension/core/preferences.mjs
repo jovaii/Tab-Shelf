@@ -1,5 +1,5 @@
 export const PREFERENCE_KEY = "tabShelf.preferences.v1";
-export const MAX_BACKGROUND_IMAGE_BYTES = 4 * 1024 * 1024;
+export const MAX_BACKGROUND_IMAGE_BYTES = 3 * 1024 * 1024;
 const MAX_IMPORT_TEXT_LENGTH = 6 * 1024 * 1024;
 
 const HEX_COLOR = /^#[a-f0-9]{6}$/iu;

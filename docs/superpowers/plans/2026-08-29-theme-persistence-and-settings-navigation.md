@@ -42,12 +42,26 @@
 
 **Interfaces:**
 - Consumes: `createSafariGateway(browserApi, fallbackStorage?)`
-- Produces: `getPreferences()` and `setPreferences(value)` using primary Safari storage plus a Web Storage-compatible fallback
+- Produces: `getPreferences()` and `setPreferences(value)` using Safari storage plus a latest-write Web Storage-compatible fallback
 
-- [ ] Add tests for Safari write rejection with successful fallback, fallback reads after empty/failed Safari reads, invalid stored data, and failure of both stores.
+- [ ] Add tests for Safari write rejection with successful fallback, stale Safari data after a fallback write, fallback reads after empty/failed Safari reads, invalid stored data, and failure of both stores.
 - [ ] Run `node --test tests/safari-gateway.test.mjs` and confirm the new fallback cases fail.
 - [ ] Implement safe fallback read/write helpers that serialize through the existing preference import/export functions.
 - [ ] Re-run the focused gateway tests and confirm all cases pass.
+
+### Task 2A: Keep preferences within Safari's documented quota
+
+**Files:**
+- Modify: `tests/preferences.test.mjs`
+- Modify: `extension/core/preferences.mjs`
+
+**Interfaces:**
+- Consumes: `MAX_BACKGROUND_IMAGE_BYTES`
+- Produces: a 3 MiB decoded image ceiling that leaves room for Base64 expansion and the bounded workspace under Safari's 5 MiB default quota
+
+- [ ] Add an exact regression assertion for the 3 MiB image ceiling.
+- [ ] Run the focused preference test and confirm it fails against the former 4 MiB value.
+- [ ] Change the ceiling to 3 MiB and confirm the focused test passes.
 
 ### Task 3: Reuse the current extension tab
 
@@ -78,4 +92,3 @@
 - [ ] Package and install the app with existing controlled scripts.
 - [ ] Verify the installed manifest, signature, and exactly one `pluginkit` registration.
 - [ ] Commit the reviewed source changes and push the current branch to the public GitHub repository.
-

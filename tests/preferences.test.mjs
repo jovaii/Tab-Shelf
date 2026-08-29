@@ -13,6 +13,7 @@ import {
 
 test("uses only the new preference schema and five authored presets", () => {
   assert.equal(PREFERENCE_KEY, "tabShelf.preferences.v1");
+  assert.equal(MAX_BACKGROUND_IMAGE_BYTES, 3 * 1024 * 1024);
   assert.equal(DEFAULT_PREFERENCES.schema, PREFERENCE_KEY);
   assert.equal(DEFAULT_PREFERENCES.preset, "storm-horizon");
   assert.deepEqual(

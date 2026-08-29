@@ -166,6 +166,15 @@ test("saves to the fallback when Safari rejects the preference write", async () 
     JSON.parse(fallback.getItem("tabShelf.preferences.v1")).preset,
     "storm-horizon",
   );
+
+  const nextPage = createSafariGateway(fakeBrowser({
+    storageLocal: {
+      get: async () => ({
+        "tabShelf.preferences.v1": preferencesFromPreset("quiet-neutral"),
+      }),
+    },
+  }), fallback);
+  assert.equal((await nextPage.getPreferences()).preset, "storm-horizon");
 });
 
 test("reports a normalized write error only when both preference stores fail", async () => {

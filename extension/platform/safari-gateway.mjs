@@ -183,12 +183,13 @@ export function createSafariGateway(browserApi, fallbackStorage = defaultFallbac
   }
 
   async function getPreferences() {
+    const fallback = fallbackPreferences();
+    if (fallback.state === "valid") return fallback.value;
+
     let stored;
     try {
       stored = await browserApi.storage.local.get(PREFERENCE_KEY);
     } catch {
-      const fallback = fallbackPreferences();
-      if (fallback.state === "valid") return fallback.value;
       if (fallback.state === "invalid") {
         throw new TabShelfPlatformError("PREFERENCE_INVALID", "Stored preferences are invalid");
       }
@@ -198,15 +199,15 @@ export function createSafariGateway(browserApi, fallbackStorage = defaultFallbac
       );
     }
     if (!stored || typeof stored !== "object" || !(PREFERENCE_KEY in stored)) {
-      const fallback = fallbackPreferences();
-      if (fallback.state === "valid") return fallback.value;
-      return importPreferences(exportPreferences(DEFAULT_PREFERENCES));
+      const defaults = importPreferences(exportPreferences(DEFAULT_PREFERENCES));
+      writeFallbackPreferences(defaults);
+      return defaults;
     }
     try {
-      return validatePreferences(stored[PREFERENCE_KEY]);
+      const preferences = validatePreferences(stored[PREFERENCE_KEY]);
+      writeFallbackPreferences(preferences);
+      return preferences;
     } catch {
-      const fallback = fallbackPreferences();
-      if (fallback.state === "valid") return fallback.value;
       throw new TabShelfPlatformError("PREFERENCE_INVALID", "Stored preferences are invalid");
     }
   }

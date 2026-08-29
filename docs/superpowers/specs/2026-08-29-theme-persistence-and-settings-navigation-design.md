@@ -12,7 +12,9 @@ Make Storm Horizon the reliable Tab Shelf appearance on first launch and after r
 
 ## Selected Approach
 
-Use a two-layer preference store. Safari `browser.storage.local` remains the primary store. A same-origin `localStorage` document is mirrored and used as a fallback when Safari storage rejects a read or write, or returns no preference document. Both stores receive the same validated, detached schema document.
+Use a two-layer preference store. Safari `browser.storage.local` remains the platform store. A same-origin `localStorage` document is mirrored and becomes the current-page authority after the first validated read or write, preventing an older Safari value from replacing a newer fallback value after a rejected Safari write. Both stores receive the same validated, detached schema document.
+
+Keep decoded custom background images at or below 3 MiB. Base64 expansion keeps the preference document near 4 MiB, leaving room for the independently bounded 0.5 MiB workspace under Safari's documented 5 MiB default local-storage quota.
 
 Navigate between `shelf.html` and `settings.html` in the current owned extension tab. Create a new tab only when the caller is not already running in a Tab Shelf extension page. This removes the known extra-tab trigger while preserving toolbar or native-app entry points.
 
@@ -27,7 +29,7 @@ Set `storm-horizon` as both `DEFAULT_PREFERENCES` and the Reset Appearance targe
 ## Data and Error Rules
 
 - Never return unvalidated preference data from either store.
-- Prefer a valid Safari storage document over the fallback document.
+- Prefer a valid fallback document because every current-version write mirrors it and a rejected Safari write can leave an older Safari document behind.
 - If Safari storage is empty, use a valid fallback document; otherwise use Storm Horizon.
 - If Safari storage contains invalid data, use a valid fallback document; otherwise report `PREFERENCE_INVALID`.
 - A save succeeds when at least one store persists the validated document.
@@ -41,5 +43,6 @@ Set `storm-horizon` as both `DEFAULT_PREFERENCES` and the Reset Appearance targe
 3. Selecting any preset remains selected in a newly opened Tab Shelf page.
 4. Theme saving succeeds when Safari storage rejects but same-origin storage works.
 5. Settings and shelf navigation reuses the current owned extension tab.
-6. All automated checks pass, the signed app installs once, and Safari reports exactly one Tab Shelf extension registration.
-
+6. A stale valid Safari preference cannot replace a newer valid fallback preference.
+7. Custom background images remain within the combined Safari storage budget.
+8. All automated checks pass, the signed app installs once, and Safari reports exactly one Tab Shelf extension registration.
