@@ -44,6 +44,18 @@ function fakeBrowser(overrides = {}) {
   };
 }
 
+function memoryStorage(initial = {}) {
+  const values = new Map(Object.entries(initial));
+  return {
+    getItem(key) {
+      return values.has(key) ? values.get(key) : null;
+    },
+    setItem(key, value) {
+      values.set(key, String(value));
+    },
+  };
+}
+
 test("requires the Safari browser namespace", () => {
   assert.throws(() => createSafariGateway(undefined), /Safari browser API/);
   assert.throws(() => createSafariGateway({ tabs: {} }), /Safari browser API/);
@@ -97,12 +109,36 @@ test("closes a unique non-empty set of valid tab identifiers", async () => {
 
 test("loads the default preferences only when storage is empty", async () => {
   const emptyGateway = createSafariGateway(fakeBrowser());
-  assert.equal((await emptyGateway.getPreferences()).preset, "quiet-neutral");
+  assert.equal((await emptyGateway.getPreferences()).preset, "storm-horizon");
 
   const invalidGateway = createSafariGateway(fakeBrowser({
     storageLocal: { get: async () => ({ "tabShelf.preferences.v1": { schema: "wrong" } }) },
   }));
   await assert.rejects(() => invalidGateway.getPreferences(), /Stored preferences are invalid/);
+});
+
+test("reads a valid fallback preference when Safari storage is empty or unavailable", async () => {
+  const fallback = memoryStorage({
+    "tabShelf.preferences.v1": JSON.stringify(preferencesFromPreset("neon-bloom")),
+  });
+  const emptyGateway = createSafariGateway(fakeBrowser(), fallback);
+  assert.equal((await emptyGateway.getPreferences()).preset, "neon-bloom");
+
+  const unavailableGateway = createSafariGateway(fakeBrowser({
+    storageLocal: { get: async () => { throw new Error("unavailable"); } },
+  }), fallback);
+  assert.equal((await unavailableGateway.getPreferences()).preset, "neon-bloom");
+});
+
+test("uses a valid fallback when Safari contains an invalid preference document", async () => {
+  const fallback = memoryStorage({
+    "tabShelf.preferences.v1": JSON.stringify(preferencesFromPreset("ice-lavender")),
+  });
+  const gateway = createSafariGateway(fakeBrowser({
+    storageLocal: { get: async () => ({ "tabShelf.preferences.v1": { schema: "wrong" } }) },
+  }), fallback);
+
+  assert.equal((await gateway.getPreferences()).preset, "ice-lavender");
 });
 
 test("validates and stores a detached preference document", async () => {
@@ -116,6 +152,39 @@ test("validates and stores a detached preference document", async () => {
   preferences.preset = "custom";
 
   assert.equal(writes[0]["tabShelf.preferences.v1"].preset, "mist-teal");
+});
+
+test("saves to the fallback when Safari rejects the preference write", async () => {
+  const fallback = memoryStorage();
+  const gateway = createSafariGateway(fakeBrowser({
+    storageLocal: { set: async () => { throw new Error("unavailable"); } },
+  }), fallback);
+
+  await gateway.setPreferences(preferencesFromPreset("storm-horizon"));
+
+  assert.equal(
+    JSON.parse(fallback.getItem("tabShelf.preferences.v1")).preset,
+    "storm-horizon",
+  );
+});
+
+test("reports a normalized write error only when both preference stores fail", async () => {
+  const fallback = {
+    getItem: () => null,
+    setItem: () => { throw new Error("quota"); },
+  };
+  const gateway = createSafariGateway(fakeBrowser({
+    storageLocal: { set: async () => { throw new Error("unavailable"); } },
+  }), fallback);
+
+  await assert.rejects(
+    () => gateway.setPreferences(preferencesFromPreset("storm-horizon")),
+    (error) => {
+      assert.equal(error.code, "PREFERENCE_WRITE_FAILED");
+      assert.equal(error.message.includes("quota"), false);
+      return true;
+    },
+  );
 });
 
 test("loads, validates, stores, resets, and observes the separate workspace", async () => {
@@ -197,10 +266,13 @@ test("keeps workspace subscriptions optional and validates listeners", () => {
   assert.doesNotThrow(unsubscribe);
 });
 
-test("opens only owned extension pages", async () => {
+test("opens extension pages in a new tab for a non-owned caller", async () => {
   const opened = [];
   const gateway = createSafariGateway(fakeBrowser({
-    tabs: { create: async (request) => opened.push(request) },
+    tabs: {
+      getCurrent: async () => ({ id: 1, url: "https://example.test/" }),
+      create: async (request) => opened.push(request),
+    },
   }));
 
   await gateway.openShelf();
@@ -210,6 +282,28 @@ test("opens only owned extension pages", async () => {
     { url: "safari-web-extension://independent/shelf.html" },
     { url: "safari-web-extension://independent/settings.html" },
   ]);
+});
+
+test("navigates the current owned extension tab instead of creating another tab", async () => {
+  const calls = [];
+  const gateway = createSafariGateway(fakeBrowser({
+    tabs: {
+      getCurrent: async () => ({
+        id: 17,
+        url: "safari-web-extension://independent/shelf.html",
+      }),
+      update: async (id, request) => calls.push(["update", id, request]),
+      create: async (request) => calls.push(["create", request]),
+    },
+  }));
+
+  await gateway.openSettings();
+
+  assert.deepEqual(calls, [[
+    "update",
+    17,
+    { url: "safari-web-extension://independent/settings.html" },
+  ]]);
 });
 
 test("sets a bounded badge count and hides zero", async () => {

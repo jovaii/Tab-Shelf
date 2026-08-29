@@ -451,7 +451,7 @@ function bindControls() {
   controls.removeBackgroundImage.addEventListener("click", removeBackgroundImage);
   controls.exportTheme.addEventListener("click", exportTheme);
   controls.importTheme.addEventListener("change", importTheme);
-  controls.resetTheme.addEventListener("click", () => selectPreset("quiet-neutral"));
+  controls.resetTheme.addEventListener("click", () => selectPreset("storm-horizon"));
   controls.resetWorkspace.addEventListener("click", async () => {
     if (!window.confirm("Reset every custom category and saved tab position? Your theme will stay unchanged.")) return;
     setStatus("Resetting tab layout…");

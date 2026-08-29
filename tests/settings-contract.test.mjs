@@ -99,6 +99,6 @@ test("settings resets workspace independently from appearance", () => {
   assert.match(javascript, /Workspace layout reset/u);
   assert.match(
     javascript,
-    /controls\.resetTheme\.addEventListener\("click",\s*\(\)\s*=>\s*selectPreset\("quiet-neutral"\)\)/u,
+    /controls\.resetTheme\.addEventListener\("click",\s*\(\)\s*=>\s*selectPreset\("storm-horizon"\)\)/u,
   );
 });

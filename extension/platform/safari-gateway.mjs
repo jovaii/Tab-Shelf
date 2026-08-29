@@ -76,8 +76,44 @@ function detachedWorkspace(value) {
   return JSON.parse(JSON.stringify(validateWorkspace(value)));
 }
 
-export function createSafariGateway(browserApi) {
+function defaultFallbackStorage() {
+  try {
+    return globalThis.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+export function createSafariGateway(browserApi, fallbackStorage = defaultFallbackStorage()) {
   assertSafariApi(browserApi);
+
+  function fallbackPreferences() {
+    if (!fallbackStorage || typeof fallbackStorage.getItem !== "function") {
+      return { state: "empty" };
+    }
+    let serialized;
+    try {
+      serialized = fallbackStorage.getItem(PREFERENCE_KEY);
+    } catch {
+      return { state: "unavailable" };
+    }
+    if (serialized === null) return { state: "empty" };
+    try {
+      return { state: "valid", value: importPreferences(serialized) };
+    } catch {
+      return { state: "invalid" };
+    }
+  }
+
+  function writeFallbackPreferences(preferences) {
+    if (!fallbackStorage || typeof fallbackStorage.setItem !== "function") return false;
+    try {
+      fallbackStorage.setItem(PREFERENCE_KEY, exportPreferences(preferences));
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   function extensionOrigin() {
     const value = browserApi.runtime.getURL("");
@@ -147,17 +183,30 @@ export function createSafariGateway(browserApi) {
   }
 
   async function getPreferences() {
-    const stored = await platformCall(
-      "PREFERENCE_READ_FAILED",
-      "Tab Shelf preferences could not be read",
-      () => browserApi.storage.local.get(PREFERENCE_KEY),
-    );
+    let stored;
+    try {
+      stored = await browserApi.storage.local.get(PREFERENCE_KEY);
+    } catch {
+      const fallback = fallbackPreferences();
+      if (fallback.state === "valid") return fallback.value;
+      if (fallback.state === "invalid") {
+        throw new TabShelfPlatformError("PREFERENCE_INVALID", "Stored preferences are invalid");
+      }
+      throw new TabShelfPlatformError(
+        "PREFERENCE_READ_FAILED",
+        "Tab Shelf preferences could not be read",
+      );
+    }
     if (!stored || typeof stored !== "object" || !(PREFERENCE_KEY in stored)) {
+      const fallback = fallbackPreferences();
+      if (fallback.state === "valid") return fallback.value;
       return importPreferences(exportPreferences(DEFAULT_PREFERENCES));
     }
     try {
       return validatePreferences(stored[PREFERENCE_KEY]);
     } catch {
+      const fallback = fallbackPreferences();
+      if (fallback.state === "valid") return fallback.value;
       throw new TabShelfPlatformError("PREFERENCE_INVALID", "Stored preferences are invalid");
     }
   }
@@ -169,11 +218,20 @@ export function createSafariGateway(browserApi) {
     } catch {
       throw new TabShelfPlatformError("PREFERENCE_INVALID", "Preferences are invalid");
     }
-    await platformCall(
-      "PREFERENCE_WRITE_FAILED",
-      "Tab Shelf preferences could not be saved",
-      () => browserApi.storage.local.set({ [PREFERENCE_KEY]: preferences }),
-    );
+    let safariSaved = false;
+    try {
+      await browserApi.storage.local.set({ [PREFERENCE_KEY]: preferences });
+      safariSaved = true;
+    } catch {
+      safariSaved = false;
+    }
+    const fallbackSaved = writeFallbackPreferences(preferences);
+    if (!safariSaved && !fallbackSaved) {
+      throw new TabShelfPlatformError(
+        "PREFERENCE_WRITE_FAILED",
+        "Tab Shelf preferences could not be saved",
+      );
+    }
   }
 
   async function getWorkspace() {
@@ -254,6 +312,24 @@ export function createSafariGateway(browserApi) {
     const url = browserApi.runtime.getURL(path);
     if (typeof url !== "string" || !url.startsWith(extensionOrigin())) {
       throw new TabShelfPlatformError("EXTENSION_URL_FAILED", "Safari extension URL is invalid");
+    }
+    let currentTab;
+    try {
+      currentTab = await browserApi.tabs.getCurrent();
+    } catch {
+      currentTab = null;
+    }
+    if (
+      currentTab
+      && validIdentifier(currentTab.id)
+      && typeof currentTab.url === "string"
+      && currentTab.url.startsWith(extensionOrigin())
+    ) {
+      return platformCall(
+        "TAB_NAVIGATION_FAILED",
+        "Safari could not navigate to the requested Tab Shelf page",
+        () => browserApi.tabs.update(currentTab.id, { url }),
+      );
     }
     return platformCall(
       "TAB_CREATE_FAILED",

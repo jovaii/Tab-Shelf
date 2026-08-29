@@ -157,7 +157,7 @@ export const THEME_PRESETS = deepFreeze({
   }),
 });
 
-export const DEFAULT_PREFERENCES = THEME_PRESETS["quiet-neutral"];
+export const DEFAULT_PREFERENCES = THEME_PRESETS["storm-horizon"];
 
 function assertPlainObject(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {

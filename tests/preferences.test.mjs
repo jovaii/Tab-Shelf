@@ -14,12 +14,14 @@ import {
 test("uses only the new preference schema and five authored presets", () => {
   assert.equal(PREFERENCE_KEY, "tabShelf.preferences.v1");
   assert.equal(DEFAULT_PREFERENCES.schema, PREFERENCE_KEY);
+  assert.equal(DEFAULT_PREFERENCES.preset, "storm-horizon");
   assert.deepEqual(
     Object.keys(THEME_PRESETS),
     ["quiet-neutral", "mist-teal", "ice-lavender", "neon-bloom", "storm-horizon"],
   );
   assert.equal(Object.isFrozen(DEFAULT_PREFERENCES), true);
   assert.equal(Object.isFrozen(THEME_PRESETS["storm-horizon"].background.stops), true);
+  assert.equal(DEFAULT_PREFERENCES, THEME_PRESETS["storm-horizon"]);
 });
 
 test("creates a detached preference object from a preset", () => {
